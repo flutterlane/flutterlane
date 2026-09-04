@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutterlane/flutterlane.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() => runApp(const FlutterLaneExampleApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  const windowOptions = WindowOptions(
+    size: Size(1400, 900),
+    center: true,
+    title: 'FlutterLane IDE Demo',
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
+  runApp(const FlutterLaneExampleApp());
+}
 
 // ============================================================
 // Custom themes — registered alongside the 3 built-in themes
@@ -783,7 +799,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 // Chrome header
 // ============================================================
 
-class _ChromeHeader extends StatelessWidget {
+class _ChromeHeader extends StatefulWidget {
   final FlutterLaneManager manager;
   final TabBarController windowTabs;
   final VoidCallback onResetLayout;
@@ -797,80 +813,387 @@ class _ChromeHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
+  State<_ChromeHeader> createState() => _ChromeHeaderState();
+}
 
-    return Container(
-      height: 42,
-      color: theme.headerBarBackground,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        children: [
-          const Row(
+class _ChromeHeaderState extends State<_ChromeHeader> {
+  String? _openMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.manager.currentTheme;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // ── Title bar ──
+        Container(
+          height: 42,
+          color: theme.headerBarBackground,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
             children: [
-              _TrafficButton(color: Color(0xFFff5f57)),
-              SizedBox(width: 8),
-              _TrafficButton(color: Color(0xFFfebc2e)),
-              SizedBox(width: 8),
-              _TrafficButton(color: Color(0xFF28c840)),
+              Row(
+                children: [
+                  _TrafficButton(
+                    color: const Color(0xFFff5f57),
+                    icon: Icons.close,
+                    tooltip: 'Close',
+                    onTap: () => windowManager.close(),
+                  ),
+                  const SizedBox(width: 8),
+                  _TrafficButton(
+                    color: const Color(0xFFfebc2e),
+                    icon: Icons.minimize,
+                    tooltip: 'Minimize',
+                    onTap: () => windowManager.minimize(),
+                  ),
+                  const SizedBox(width: 8),
+                  _TrafficButton(
+                    color: const Color(0xFF28c840),
+                    icon: Icons.maximize,
+                    tooltip: 'Maximize',
+                    onTap: () async {
+                      final maximized = await windowManager.isMaximized();
+                      maximized ? windowManager.unmaximize() : windowManager.maximize();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              _ChromeMenuBar(
+                onMenuTap: (m) => setState(() => _openMenu = _openMenu == m ? null : m),
+                openMenu: _openMenu,
+                manager: widget.manager,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: SizedBox(
+                  height: 38,
+                  child: WindowTabBar(
+                    controller: widget.windowTabs,
+                    newTabLabel: 'New Window',
+                    style: TabBarStyle.fromFlutterLaneTheme(theme),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              _LayoutDropdown(manager: widget.manager, onSelectLayout: widget.onSelectLayout),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.save_outlined, size: 15, color: theme.headerBarTextColor),
+                tooltip: 'Save current layout',
+                onPressed: () => _showSaveDialog(context, widget.manager),
+              ),
+              IconButton(
+                icon: Icon(_themeIcon(widget.manager), size: 15, color: theme.headerBarTextColor),
+                tooltip: _themeTooltip(widget.manager),
+                onPressed: () => widget.manager.themeManager.cycleTheme(),
+              ),
+              IconButton(
+                key: const ValueKey('reset-default-layout'),
+                icon: Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
+                tooltip: 'Reset to default layout',
+                onPressed: () => widget.onResetLayout(),
+              ),
             ],
           ),
-          const SizedBox(width: 16),
-          Icon(Icons.menu, size: 14, color: theme.headerBarTextColor),
-          const SizedBox(width: 12),
-          Flexible(
-            child: SizedBox(
-              height: 38,
-              child: WindowTabBar(
-                controller: windowTabs,
-                newTabLabel: 'New Window',
-                style: TabBarStyle.fromFlutterLaneTheme(theme),
+        ),
+        // ── Menu dropdown overlay ──
+        if (_openMenu != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _openMenu = null),
+              behavior: HitTestBehavior.translucent,
+              child: Stack(
+                children: [
+                  Positioned(
+                    top: 42,
+                    left: _menuLeftOffset(_openMenu!),
+                    child: _MenuDropdown(
+                      items: _getMenuItems(_openMenu!),
+                      theme: theme,
+                      onClose: () => setState(() => _openMenu = null),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const Spacer(),
-          _LayoutDropdown(manager: manager, onSelectLayout: onSelectLayout),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.save_outlined,
-                size: 15, color: theme.headerBarTextColor),
-            tooltip: 'Save current layout',
-            onPressed: () => _showSaveDialog(context, manager),
-          ),
-          IconButton(
-            icon: Icon(
-              _themeIcon(manager),
-              size: 15,
-              color: theme.headerBarTextColor,
+      ],
+    );
+  }
+
+  double _menuLeftOffset(String menu) {
+    const labels = ['File', 'Edit', 'View', 'Go', 'Run', 'Terminal', 'Help'];
+    const double baseLeft = 10 + 12 + 16; // padding + traffic lights + gap
+    double offset = baseLeft;
+    for (final l in labels) {
+      if (l == menu) return offset;
+      offset += l.length * 7.5 + 16; // approximate text width + padding
+    }
+    return offset;
+  }
+
+  List<_MenuItem> _getMenuItems(String menu) {
+    final m = <String, List<_MenuItem>>{
+      'File': [
+        _MenuItem('New File', Icons.add, () {}, shortcut: 'Ctrl+N'),
+        _MenuItem('New Window', Icons.tab, () {}, shortcut: 'Ctrl+Shift+N'),
+        _MenuItem.divider(),
+        _MenuItem('Open File...', Icons.folder_open, () {}, shortcut: 'Ctrl+O'),
+        _MenuItem('Open Folder...', Icons.folder, () {}, shortcut: 'Ctrl+K Ctrl+O'),
+        _MenuItem.divider(),
+        _MenuItem('Save', Icons.save_outlined, () => _showSaveDialog(context, widget.manager), shortcut: 'Ctrl+S'),
+        _MenuItem('Save As...', Icons.save, () {}, shortcut: 'Ctrl+Shift+S'),
+        _MenuItem.divider(),
+        _MenuItem('Preferences', Icons.settings, () {}, shortcut: 'Ctrl+,'),
+        _MenuItem.divider(),
+        _MenuItem('Exit', Icons.exit_to_app, () => windowManager.close()),
+      ],
+      'Edit': [
+        _MenuItem('Undo', Icons.undo, () {}, shortcut: 'Ctrl+Z'),
+        _MenuItem('Redo', Icons.redo, () {}, shortcut: 'Ctrl+Y'),
+        _MenuItem.divider(),
+        _MenuItem('Cut', Icons.content_cut, () {}, shortcut: 'Ctrl+X'),
+        _MenuItem('Copy', Icons.copy, () {}, shortcut: 'Ctrl+C'),
+        _MenuItem('Paste', Icons.paste, () {}, shortcut: 'Ctrl+V'),
+        _MenuItem.divider(),
+        _MenuItem('Find', Icons.search, () {}, shortcut: 'Ctrl+F'),
+        _MenuItem('Replace', Icons.find_replace, () {}, shortcut: 'Ctrl+H'),
+      ],
+      'View': [
+        _MenuItem('Explorer', Icons.folder_copy_rounded, () {}, shortcut: 'Ctrl+Shift+E'),
+        _MenuItem('Search', Icons.search, () {}, shortcut: 'Ctrl+Shift+F'),
+        _MenuItem('Source Control', Icons.account_tree, () {}, shortcut: 'Ctrl+Shift+G'),
+        _MenuItem('Terminal', Icons.terminal, () {}, shortcut: 'Ctrl+`'),
+        _MenuItem('Debug', Icons.bug_report, () {}, shortcut: 'Ctrl+Shift+D'),
+        _MenuItem.divider(),
+        _MenuItem('Zoom In', Icons.zoom_in, () {}, shortcut: 'Ctrl+='),
+        _MenuItem('Zoom Out', Icons.zoom_out, () {}, shortcut: 'Ctrl+-'),
+        _MenuItem('Reset Zoom', Icons.zoom_out_map, () {}, shortcut: 'Ctrl+0'),
+        _MenuItem.divider(),
+        _MenuItem('Toggle Full Screen', Icons.fullscreen, () {}, shortcut: 'F11'),
+      ],
+      'Go': [
+        _MenuItem('Back', Icons.arrow_back, () {}, shortcut: 'Alt+Left'),
+        _MenuItem('Forward', Icons.arrow_forward, () {}, shortcut: 'Alt+Right'),
+        _MenuItem.divider(),
+        _MenuItem('Go to File...', Icons.file_open, () {}, shortcut: 'Ctrl+P'),
+        _MenuItem('Go to Line...', Icons.tag, () {}, shortcut: 'Ctrl+G'),
+      ],
+      'Run': [
+        _MenuItem('Start Debugging', Icons.play_arrow, () {}, shortcut: 'F5'),
+        _MenuItem('Run Without Debugging', Icons.fast_forward, () {}, shortcut: 'Ctrl+F5'),
+        _MenuItem.divider(),
+        _MenuItem('Stop Debugging', Icons.stop, () {}, shortcut: 'Shift+F5'),
+        _MenuItem('Restart Debugging', Icons.restart_alt, () {}, shortcut: 'Ctrl+Shift+F5'),
+        _MenuItem.divider(),
+        _MenuItem('Add Breakpoint', Icons.flag, () {}, shortcut: 'F9'),
+      ],
+      'Terminal': [
+        _MenuItem('New Terminal', Icons.terminal, () {}, shortcut: 'Ctrl+Shift+`'),
+        _MenuItem('Split Terminal', Icons.vertical_split, () {}),
+        _MenuItem.divider(),
+        _MenuItem('Kill Terminal', Icons.close, () {}),
+      ],
+      'Help': [
+        _MenuItem('Welcome', Icons.waving_hand, () {}),
+        _MenuItem('Documentation', Icons.menu_book, () {}),
+        _MenuItem.divider(),
+        _MenuItem('About FlutterLane', Icons.info_outline, () {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('FlutterLane'),
+              content: const Text('A dockable, drag-and-drop layout engine for Flutter.\n\nVersion 0.5.0'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+              ],
             ),
-            tooltip: _themeTooltip(manager),
-            onPressed: () => manager.themeManager.cycleTheme(),
+          );
+        }),
+      ],
+    };
+    return m[menu] ?? [];
+  }
+}
+
+class _ChromeMenuBar extends StatelessWidget {
+  final ValueChanged<String> onMenuTap;
+  final String? openMenu;
+  final FlutterLaneManager manager;
+
+  const _ChromeMenuBar({
+    required this.onMenuTap,
+    required this.openMenu,
+    required this.manager,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = manager.currentTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final label in ['File', 'Edit', 'View', 'Go', 'Run', 'Terminal', 'Help'])
+          GestureDetector(
+            onTap: () => onMenuTap(label),
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: openMenu == label ? theme.tabActiveBackground : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: openMenu == label ? theme.tabActiveTextColor : theme.tabInactiveTextColor,
+                ),
+              ),
+            ),
           ),
-          IconButton(
-            key: const ValueKey('reset-default-layout'),
-            icon:
-                Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
-            tooltip: 'Reset to default layout',
-            onPressed: () => onResetLayout(),
+      ],
+    );
+  }
+}
+
+class _MenuItem {
+  final String? label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool isDivider;
+  final String? shortcut;
+
+  const _MenuItem(this.label, this.icon, this.onTap, {this.shortcut}) : isDivider = false;
+  const _MenuItem.divider()
+      : label = null,
+        icon = null,
+        onTap = null,
+        shortcut = null,
+        isDivider = true;
+}
+
+class _TrafficButton extends StatefulWidget {
+  final Color color;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _TrafficButton({
+    required this.color,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  State<_TrafficButton> createState() => _TrafficButtonState();
+}
+
+class _TrafficButtonState extends State<_TrafficButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+            child: _hovered
+                ? Icon(widget.icon, size: 8, color: Colors.black87)
+                : null,
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _TrafficButton extends StatelessWidget {
-  final Color color;
-  const _TrafficButton({required this.color});
+class _MenuDropdown extends StatelessWidget {
+  final List<_MenuItem> items;
+  final FlutterLaneThemeData theme;
+  final VoidCallback onClose;
+
+  const _MenuDropdown({
+    required this.items,
+    required this.theme,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
+    return Material(
+      color: Colors.transparent,
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          width: 240,
+          decoration: BoxDecoration(
+            color: theme.sectionBackground,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: theme.sectionBorderColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final item in items)
+                if (item.isDivider)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Divider(height: 1, color: theme.sectionBorderColor),
+                  )
+                else
+                  InkWell(
+                    onTap: () {
+                      item.onTap?.call();
+                      onClose();
+                    },
+                    child: Container(
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Icon(item.icon, size: 14, color: theme.tabInactiveTextColor),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.label ?? '',
+                              style: TextStyle(fontSize: 12, color: theme.sectionHeaderTextColor),
+                            ),
+                          ),
+                          if (item.shortcut != null)
+                            Text(
+                              item.shortcut!,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.tabInactiveTextColor.withValues(alpha: 0.6),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        ),
       ),
     );
   }
