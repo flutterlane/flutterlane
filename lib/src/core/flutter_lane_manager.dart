@@ -52,6 +52,28 @@ class FlutterLaneManager extends ChangeNotifier {
   /// The current theme data (convenience getter).
   FlutterLaneThemeData get currentTheme => themeManager.currentTheme;
 
+  /// Applies a fully custom theme, overriding the built-in theme.
+  ///
+  /// Pass `null` to clear the custom theme and revert to the built-in one.
+  ///
+  /// ```dart
+  /// // Apply a custom theme
+  /// manager.setCustomTheme(const FlutterLaneThemeData(
+  ///   swimlaneBackground: Color(0xFF1A1A2E),
+  ///   // ... all 27 color properties
+  /// ));
+  ///
+  /// // Revert to built-in
+  /// manager.setCustomTheme(null);
+  /// ```
+  void setCustomTheme(FlutterLaneThemeData? theme) {
+    if (theme == null) {
+      themeManager.clearCustomTheme();
+    } else {
+      themeManager.setCustomTheme(theme);
+    }
+  }
+
   // ── Initialization ──
 
   /// Initializes the engine: loads persisted layouts and theme for this workspace.
