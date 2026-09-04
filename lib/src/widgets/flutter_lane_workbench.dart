@@ -196,7 +196,10 @@ class _WorkbenchBody extends StatelessWidget {
     }
     return Expanded(
       flex: ((lane.flex) * 1000).round(),
-      child: content,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: lane.minWidth),
+        child: content,
+      ),
     );
   }
 
