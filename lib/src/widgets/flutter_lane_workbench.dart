@@ -71,12 +71,9 @@ class _WorkbenchBody extends StatelessWidget {
               ),
               Positioned(
                 right: 0,
-                // Start below the 32px section header so the right-edge hot
-                // zone does not swallow taps on the last swimlane's header
-                // controls (add-pane button, close button).
-                top: 32,
                 bottom: 0,
-                width: 36,
+                width: 64,
+                height: 64,
                 child: AddSwimlaneHotZone(
                   onAdd: () => manager.addSwimlane(
                     Swimlane(sections: [Section(title: 'New Section')]),
