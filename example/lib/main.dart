@@ -91,7 +91,7 @@ class _TreeNode {
         children = const [];
 }
 
-enum _WorkspaceLayoutKind { fullIde, docs, repo }
+enum _WorkspaceLayoutKind { fullIde, docs, repo, minimal }
 
 class _Workspace {
   final String id;
@@ -261,6 +261,35 @@ VS Code-style workspaces in Flutter.
     ],
     defaultFile: 'README.md',
   ),
+
+  // ── Minimal — lightweight workspace for quick notes ──
+  _Workspace(
+    id: 'minimal',
+    title: 'Notes',
+    url: 'local',
+    closable: true,
+    layoutKind: _WorkspaceLayoutKind.minimal,
+    tree: [
+      _TreeNode.file('scratch.md'),
+      _TreeNode.file('todo.md'),
+    ],
+    files: [
+      _WorkspaceFile('scratch.md', '''# Scratch Notes
+
+- [ ] Finish integrating FlutterLane
+- [x] Add workspace isolation
+- [x] Multi-theme support
+- Review PR #42
+'''),
+      _WorkspaceFile('todo.md', '''# TODO
+
+1. Deploy to staging
+2. Write release notes
+3. Update changelog
+'''),
+    ],
+    defaultFile: 'scratch.md',
+  ),
 ];
 
 _Workspace _workspaceById(String id) {
@@ -429,6 +458,21 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     ));
 
     mgr.registry.registerPaneView(ViewInstanceMeta(
+      viewTypeId: 'git',
+      viewDisplayName: 'Source Control',
+      icon: Icons.account_tree_outlined,
+      viewBuilder: (ctx, bizCtx, state) =>
+          _GitView(workspace: ws),
+    ));
+
+    mgr.registry.registerPaneView(ViewInstanceMeta(
+      viewTypeId: 'settings',
+      viewDisplayName: 'Settings',
+      icon: Icons.tune,
+      viewBuilder: (ctx, bizCtx, state) => const _SettingsView(),
+    ));
+
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'preview',
       viewDisplayName: 'Preview',
       icon: Icons.visibility,
@@ -527,6 +571,8 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
         return _buildDocsLayout(ws);
       case _WorkspaceLayoutKind.repo:
         return _buildRepoLayout(ws);
+      case _WorkspaceLayoutKind.minimal:
+        return _buildMinimalLayout(ws);
     }
   }
 
@@ -621,6 +667,21 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
         minWidth: 300,
         canClose: true,
         sections: [editor, terminal],
+      ),
+    ];
+  }
+
+  /// Minimal: just editor — no sidebar, for quick-edit workspaces.
+  List<Swimlane> _buildMinimalLayout(_Workspace ws) {
+    final editor = Section(title: 'Editor', canToggle: true, canAddPane: true);
+    editor.addPane(_pane('editor', ws));
+
+    return [
+      Swimlane(
+        flex: 100,
+        minWidth: 300,
+        canClose: true,
+        sections: [editor],
       ),
     ];
   }
@@ -832,6 +893,7 @@ class _ActivityBar extends StatelessWidget {
   static const List<(String, IconData)> _items = [
     ('explorer', Icons.folder_copy_rounded),
     ('search', Icons.search_rounded),
+    ('git', Icons.account_tree_rounded),
     ('terminal', Icons.terminal_rounded),
     ('debug', Icons.bug_report_rounded),
     ('chat', Icons.chat_rounded),
@@ -857,15 +919,20 @@ class _ActivityBar extends StatelessWidget {
             );
           }),
           const Spacer(),
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+          GestureDetector(
+            onTap: () => onActivityTap('settings'),
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: 'settings' == activeActivity
+                    ? theme.tabActiveBackground
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.settings_outlined,
+                  size: 20, color: theme.tabInactiveTextColor),
             ),
-            child: Icon(Icons.settings_outlined,
-                size: 20, color: theme.tabInactiveTextColor),
           ),
           const SizedBox(height: 10),
         ],
@@ -1718,6 +1785,312 @@ class _PortsView extends StatelessWidget {
             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// Git (Source Control) view
+// ============================================================
+
+class _GitView extends StatelessWidget {
+  final _Workspace workspace;
+  const _GitView({required this.workspace});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterLaneTheme.of(context);
+
+    return Container(
+      color: theme.sectionBackground,
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.account_tree_outlined,
+                  size: 14, color: Colors.tealAccent),
+              const SizedBox(width: 6),
+              Text(
+                'Source Control',
+                style: TextStyle(
+                  color: theme.sectionHeaderTextColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.refresh,
+                  size: 14, color: theme.tabInactiveTextColor),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.tabBarBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.tabBorderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Changes (3)',
+                  style: TextStyle(
+                    color: theme.sectionHeaderTextColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _gitChangeRow('M', 'lib/src/core/flutter_lane_manager.dart',
+                    Colors.orange),
+                _gitChangeRow('A', 'lib/src/interactions/hot_zone.dart',
+                    Colors.green),
+                _gitChangeRow('D', 'lib/src/legacy/old_api.dart', Colors.red),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: theme.tabActiveBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.tabBorderColor),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.commit, size: 14, color: theme.tabActiveTextColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Commit Message',
+                    style: TextStyle(
+                      color: theme.tabInactiveTextColor,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.tabActiveBackground,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'Commit',
+                    style: TextStyle(
+                      color: theme.tabActiveTextColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Branch: master',
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: theme.tabInactiveTextColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _gitChangeRow(String letter, String file, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              letter,
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              file,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// Settings view
+// ============================================================
+
+class _SettingsView extends StatefulWidget {
+  const _SettingsView();
+
+  @override
+  State<_SettingsView> createState() => _SettingsViewState();
+}
+
+class _SettingsViewState extends State<_SettingsView> {
+  bool _autoSave = true;
+  bool _minimap = true;
+  bool _wordWrap = false;
+  int _fontSize = 14;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterLaneTheme.of(context);
+
+    return Container(
+      color: theme.sectionBackground,
+      padding: const EdgeInsets.all(10),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Editor Settings',
+              style: TextStyle(
+                color: theme.sectionHeaderTextColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _settingToggle(
+                'Auto Save', _autoSave, (v) => setState(() => _autoSave = v), theme),
+            _settingToggle(
+                'Minimap', _minimap, (v) => setState(() => _minimap = v), theme),
+            _settingToggle(
+                'Word Wrap', _wordWrap, (v) => setState(() => _wordWrap = v), theme),
+            const SizedBox(height: 12),
+            Text(
+              'Font Size',
+              style: TextStyle(
+                color: theme.sectionHeaderTextColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                _fontSizeBtn('-', theme),
+                const SizedBox(width: 8),
+                Text(
+                  '$_fontSize',
+                  style: TextStyle(
+                    color: theme.tabActiveTextColor,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _fontSizeBtn('+', theme),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _settingToggle(
+      String label, bool value, ValueChanged<bool> onChanged, FlutterLaneThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: theme.sectionHeaderTextColor,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => onChanged(!value),
+            child: Container(
+              width: 32,
+              height: 18,
+              decoration: BoxDecoration(
+                color: value ? Colors.tealAccent.withValues(alpha: 0.3) : theme.tabBarBackground,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: theme.tabBorderColor),
+              ),
+              child: Align(
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: value ? Colors.tealAccent : theme.tabInactiveTextColor,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fontSizeBtn(String op, FlutterLaneThemeData theme) {
+    return GestureDetector(
+      onTap: () => setState(() {
+        _fontSize = (op == '+')
+            ? (_fontSize + 1).clamp(10, 24)
+            : (_fontSize - 1).clamp(10, 24);
+      }),
+      child: Container(
+        width: 24,
+        height: 24,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: theme.tabBarBackground,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: theme.tabBorderColor),
+        ),
+        child: Text(
+          op,
+          style: TextStyle(
+            color: theme.tabActiveTextColor,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

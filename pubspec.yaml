@@ -1,10 +1,20 @@
 name: flutterlane
 description: >
-  FlutterLane (飞道布局引擎) - A professional IDE-level layered layout engine
-  for Flutter desktop applications. Three-layer swimlane architecture with
-  drag-and-drop, resize, multi-layout snapshots, and pluggable registry.
+  FlutterLane — A professional IDE-level layered layout engine for Flutter desktop.
+  Three-layer swimlane architecture with drag-and-drop, resize, multi-layout
+  snapshots, pluggable registry, workspace isolation, and customizable themes.
 version: 1.0.0
 homepage: https://github.com/flutterlane/flutterlane
+repository: https://github.com/flutterlane/flutterlane
+issue_tracker: https://github.com/flutterlane/flutterlane/issues
+topics:
+  - layout
+  - desktop
+  - ide
+  - editor
+  - drag-and-drop
+  - workspace
+  - layout-engine
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
