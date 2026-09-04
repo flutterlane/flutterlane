@@ -72,8 +72,8 @@ class _WorkbenchBody extends StatelessWidget {
               Positioned(
                 right: 0,
                 bottom: 0,
-                width: 64,
-                height: 64,
+                width: 16,
+                height: constraints.maxHeight / 2,
                 child: AddSwimlaneHotZone(
                   onAdd: () => manager.addSwimlane(
                     Swimlane(sections: [Section(title: 'New Section')]),

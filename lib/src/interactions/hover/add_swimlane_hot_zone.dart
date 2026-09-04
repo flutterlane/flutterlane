@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../theme/flutter_lane_theme.dart';
 
-/// Bottom-right corner hover zone for adding a new swimlane.
+/// Bottom-right edge hover zone for adding a new swimlane.
 ///
-/// 64×64 corner area. Hidden by default (6px dot). On hover, expands and
-/// shows "+" icon. Does not overlap with the resize handle above it.
+/// A thin 16px-wide strip along the right edge, half the swimlane height.
+/// On hover, shows a "+" icon. Tapping adds a new swimlane.
 class AddSwimlaneHotZone extends StatefulWidget {
   final VoidCallback onAdd;
 
@@ -29,14 +29,11 @@ class _AddSwimlaneHotZoneState extends State<AddSwimlaneHotZone> {
         onTap: widget.onAdd,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: _isHovered ? 32 : 6,
-          height: _isHovered ? 32 : 6,
-          margin: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: _isHovered
                 ? theme.hoverZoneActiveColor
                 : theme.hoverZoneColor,
-            borderRadius: BorderRadius.circular(_isHovered ? 16 : 3),
+            borderRadius: BorderRadius.circular(_isHovered ? 4 : 0),
           ),
           alignment: Alignment.center,
           child: AnimatedOpacity(
