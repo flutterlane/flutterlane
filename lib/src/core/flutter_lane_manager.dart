@@ -31,6 +31,11 @@ class FlutterLaneManager extends ChangeNotifier {
   /// The workspace this manager is scoped to.
   final Workspace workspace;
 
+  /// Optional swimlanes used to build the system-default layout.
+  /// When provided, [init] and [resetToDefault] use this instead of
+  /// the empty placeholder, giving the app a full-featured default.
+  final List<Swimlane>? defaultSwimlanes;
+
   late final LayoutStorage _storage;
   late final ThemeManager themeManager;
   final FlutterLaneRegistry registry = FlutterLaneRegistry();
@@ -42,8 +47,10 @@ class FlutterLaneManager extends ChangeNotifier {
   LayoutState? _activeLayout;
   Future<void> _persistQueue = Future<void>.value();
 
-  FlutterLaneManager({required this.workspace})
-      : _storage = LayoutStorage(workspaceId: workspace.workspaceId),
+  FlutterLaneManager({
+    required this.workspace,
+    this.defaultSwimlanes,
+  })  : _storage = LayoutStorage(workspaceId: workspace.workspaceId),
         themeManager = ThemeManager(workspaceId: workspace.workspaceId);
 
   List<LayoutState> get layouts => List.unmodifiable(_layouts);
@@ -91,7 +98,7 @@ class FlutterLaneManager extends ChangeNotifier {
   Future<void> init() async {
     if (kIsWeb) {
       themeManager.addListener(() => notifyListeners());
-      _layouts = [LayoutState.systemDefault()];
+      _layouts = [LayoutState.systemDefault(swimlanes: defaultSwimlanes)];
       _activeLayout = _layouts.first;
       _activeLayout!.isCurrentActive = true;
       workspace.activeLayoutId = _activeLayout!.snapshotId;
@@ -106,7 +113,7 @@ class FlutterLaneManager extends ChangeNotifier {
 
     // Ensure at least the system-default layout exists.
     if (_layouts.isEmpty) {
-      final defaults = LayoutState.systemDefault();
+      final defaults = LayoutState.systemDefault(swimlanes: defaultSwimlanes);
       _layouts.add(defaults);
     }
 
@@ -401,7 +408,7 @@ class FlutterLaneManager extends ChangeNotifier {
 
   /// Resets the active layout to the system default.
   Future<void> resetToDefault() async {
-    final defaults = LayoutState.systemDefault();
+    final defaults = LayoutState.systemDefault(swimlanes: defaultSwimlanes);
     for (final layout in _layouts) {
       layout.isCurrentActive = false;
     }

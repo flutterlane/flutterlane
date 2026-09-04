@@ -102,13 +102,17 @@ class LayoutState {
   }
 
   /// Creates the built-in system-default layout with one swimlane and one placeholder section.
-  factory LayoutState.systemDefault() {
-    final swimlane = Swimlane(sections: [Section.placeholder()]);
+  ///
+  /// Optionally supply [swimlanes] to override the default empty layout
+  /// (e.g. to provide a full IDE structure as the immutable default).
+  factory LayoutState.systemDefault({List<Swimlane>? swimlanes}) {
+    final lanes = swimlanes ??
+        [Swimlane(sections: [Section.placeholder()])];
     return LayoutState(
       layoutName: 'Default',
       isSystemDefault: true,
       isCurrentActive: true,
-      swimlanes: [swimlane],
+      swimlanes: lanes,
     );
   }
 }

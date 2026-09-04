@@ -343,7 +343,10 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
         workspaceName: ws.title,
         themeType: FlutterLaneThemeType.dark,
       );
-      final mgr = FlutterLaneManager(workspace: workspace);
+      final mgr = FlutterLaneManager(
+        workspace: workspace,
+        defaultSwimlanes: _buildWorkspaceLayout(ws),
+      );
       _registerViews(mgr, ws);
       await mgr.init();
       mgr.themeManager.registerCustomTheme('ocean', _oceanTheme);
@@ -497,8 +500,15 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     if (mgr.activeLayout == null) return;
 
     // Find the layout snapshot for this workspace and activate it.
-    final snapshot = mgr.layouts.firstWhere(
-      (l) => l.layoutName == ws.title,
+    LayoutState? snapshot;
+    for (final l in mgr.layouts) {
+      if (l.layoutName == ws.title && !l.isSystemDefault) {
+        snapshot = l;
+        break;
+      }
+    }
+    snapshot ??= mgr.layouts.firstWhere(
+      (l) => !l.isSystemDefault,
       orElse: () => mgr.layouts.first,
     );
     if (mgr.activeLayout?.snapshotId != snapshot.snapshotId) {
@@ -677,10 +687,20 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     final defaultWs = _kWorkspaces.first;
     final mgr = _managers[defaultWs.id];
     if (mgr == null) return;
-    final snapshot = mgr.layouts.firstWhere(
-      (l) => l.layoutName == defaultWs.title,
+
+    // Find the workspace's named snapshot, or fall back to the first non-default.
+    LayoutState? snapshot;
+    for (final l in mgr.layouts) {
+      if (l.layoutName == defaultWs.title && !l.isSystemDefault) {
+        snapshot = l;
+        break;
+      }
+    }
+    snapshot ??= mgr.layouts.firstWhere(
+      (l) => !l.isSystemDefault,
       orElse: () => mgr.layouts.first,
     );
+
     snapshot.swimlanes = _buildWorkspaceLayout(defaultWs);
     await mgr.save();
     if (mgr.activeLayout?.snapshotId != snapshot.snapshotId) {
@@ -1069,7 +1089,7 @@ class _LayoutDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = manager.currentTheme;
-    final layouts = manager.layouts;
+    final layouts = manager.layouts.where((l) => !l.isSystemDefault).toList();
     final activeId = manager.activeLayout?.snapshotId;
 
     return Container(
