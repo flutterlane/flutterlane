@@ -4,6 +4,71 @@ import 'package:flutterlane/flutterlane.dart';
 void main() => runApp(const FlutterLaneExampleApp());
 
 // ============================================================
+// Custom themes — registered alongside the 3 built-in themes
+// so cycleTheme cycles: light → dark → pure → ocean → ember → light
+// ============================================================
+
+const _oceanTheme = FlutterLaneThemeData(
+  swimlaneBackground: Color(0xFF0B1D33),
+  swimlaneDivider: Color(0xFF123456),
+  sectionBackground: Color(0xFF0F2744),
+  sectionHeaderBackground: Color(0xFF0B1D33),
+  sectionHeaderTextColor: Color(0xFF4FC3F7),
+  sectionBorderColor: Color(0xFF1A3A5C),
+  tabBarBackground: Color(0xFF0D2137),
+  tabActiveBackground: Color(0xFF0F3460),
+  tabActiveTextColor: Color(0xFFE1F5FE),
+  tabInactiveTextColor: Color(0xFF6B8DAE),
+  tabHoverBackground: Color(0xFF1A4A7A),
+  tabBorderColor: Color(0xFF1A3A5C),
+  paneContentBackground: Color(0xFF0F2744),
+  resizeHandleColor: Color(0xFF1A4A7A),
+  resizeHandleHoverColor: Color(0xFF4FC3F7),
+  hoverZoneColor: Color(0x204FC3F7),
+  hoverZoneActiveColor: Color(0x604FC3F7),
+  dragPlaceholderColor: Color(0x304FC3F7),
+  dragPreviewColor: Color(0x801A4A7A),
+  tooltipBackground: Color(0xFF0D2137),
+  tooltipTextColor: Color(0xFFE1F5FE),
+  statusBarBackground: Color(0xFF1A4A7A),
+  statusBarTextColor: Color(0xFFE1F5FE),
+  headerBarBackground: Color(0xFF0B1D33),
+  headerBarTextColor: Color(0xFF4FC3F7),
+  scrollbarThumbColor: Color(0xFF1A4A7A),
+  scrollbarTrackColor: Color(0x00000000),
+);
+
+const _emberTheme = FlutterLaneThemeData(
+  swimlaneBackground: Color(0xFF1A0A00),
+  swimlaneDivider: Color(0xFF3D1C00),
+  sectionBackground: Color(0xFF241200),
+  sectionHeaderBackground: Color(0xFF1A0A00),
+  sectionHeaderTextColor: Color(0xFFFFAB40),
+  sectionBorderColor: Color(0xFF4E2600),
+  tabBarBackground: Color(0xFF1F0E00),
+  tabActiveBackground: Color(0xFF5D2E00),
+  tabActiveTextColor: Color(0xFFFFF3E0),
+  tabInactiveTextColor: Color(0xFFBF8040),
+  tabHoverBackground: Color(0xFF7A3D00),
+  tabBorderColor: Color(0xFF4E2600),
+  paneContentBackground: Color(0xFF241200),
+  resizeHandleColor: Color(0xFF7A3D00),
+  resizeHandleHoverColor: Color(0xFFFFAB40),
+  hoverZoneColor: Color(0x20FFAB40),
+  hoverZoneActiveColor: Color(0x60FFAB40),
+  dragPlaceholderColor: Color(0x30FFAB40),
+  dragPreviewColor: Color(0x807A3D00),
+  tooltipBackground: Color(0xFF1F0E00),
+  tooltipTextColor: Color(0xFFFFF3E0),
+  statusBarBackground: Color(0xFF7A3D00),
+  statusBarTextColor: Color(0xFFFFF3E0),
+  headerBarBackground: Color(0xFF1A0A00),
+  headerBarTextColor: Color(0xFFFFAB40),
+  scrollbarThumbColor: Color(0xFF7A3D00),
+  scrollbarTrackColor: Color(0x00000000),
+);
+
+// ============================================================
 // Workspace dataset — each window tab binds to one workspace.
 // Workspaces share view types (editor, explorer, terminal, ...)
 // but each renders its own data through ViewInstance.businessContext.
@@ -205,6 +270,23 @@ _Workspace _workspaceById(String id) {
   return _kWorkspaces.first;
 }
 
+IconData _themeIcon(FlutterLaneManager mgr) {
+  final activeId = mgr.themeManager.activeCustomThemeId;
+  if (activeId == 'ocean') return Icons.water;
+  if (activeId == 'ember') return Icons.local_fire_department;
+  final t = mgr.themeManager.currentType;
+  if (t == FlutterLaneThemeType.dark) return Icons.light_mode;
+  if (t == FlutterLaneThemeType.light) return Icons.dark_mode;
+  return Icons.contrast;
+}
+
+String _themeTooltip(FlutterLaneManager mgr) {
+  final activeId = mgr.themeManager.activeCustomThemeId;
+  if (activeId != null) return 'Theme: $activeId (cycle)';
+  final t = mgr.themeManager.currentType;
+  return 'Theme: ${t.name} (cycle)';
+}
+
 // ============================================================
 // App
 // ============================================================
@@ -264,6 +346,8 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       final mgr = FlutterLaneManager(workspace: workspace);
       _registerViews(mgr, ws);
       await mgr.init();
+      mgr.themeManager.registerCustomTheme('ocean', _oceanTheme);
+      mgr.themeManager.registerCustomTheme('ember', _emberTheme);
       _managers[ws.id] = mgr;
 
       // Ensure a persisted layout snapshot exists for this workspace.
@@ -545,7 +629,6 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       listenable: _manager,
       builder: (context, _) {
         final theme = _manager.currentTheme;
-        final currentThemeType = _manager.themeManager.currentType;
 
         return MaterialApp(
           title: 'FlutterLane IDE Demo',
@@ -562,7 +645,6 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
                 _ChromeHeader(
                   manager: _manager,
                   windowTabs: _windowTabs,
-                  currentThemeType: currentThemeType,
                   onResetLayout: _handleResetLayout,
                   onSelectLayout: _handleSelectLayout,
                 ),
@@ -623,7 +705,6 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 class _ChromeHeader extends StatelessWidget {
   final FlutterLaneManager manager;
   final TabBarController windowTabs;
-  final FlutterLaneThemeType currentThemeType;
   final VoidCallback onResetLayout;
   final ValueChanged<String> onSelectLayout;
 
@@ -632,7 +713,6 @@ class _ChromeHeader extends StatelessWidget {
     required this.windowTabs,
     required this.onResetLayout,
     required this.onSelectLayout,
-    required this.currentThemeType,
   });
 
   @override
@@ -676,15 +756,11 @@ class _ChromeHeader extends StatelessWidget {
           ),
           IconButton(
             icon: Icon(
-              currentThemeType == FlutterLaneThemeType.dark
-                  ? Icons.light_mode
-                  : currentThemeType == FlutterLaneThemeType.light
-                      ? Icons.dark_mode
-                      : Icons.contrast,
+              _themeIcon(manager),
               size: 15,
               color: theme.headerBarTextColor,
             ),
-            tooltip: 'Cycle theme',
+            tooltip: _themeTooltip(manager),
             onPressed: () => manager.themeManager.cycleTheme(),
           ),
           IconButton(
