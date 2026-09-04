@@ -743,6 +743,7 @@ class _ChromeHeader extends StatelessWidget {
             child: WindowTabBar(
               controller: windowTabs,
               newTabLabel: 'New Window',
+              style: TabBarStyle.fromFlutterLaneTheme(theme),
             ),
           ),
           const Spacer(),

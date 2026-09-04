@@ -36,6 +36,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart'
     show HardwareKeyboard, KeyDownEvent, LogicalKeyboardKey;
+import '../../theme/flutter_lane_theme.dart' as flutterlane;
 
 // ============================================================
 // 数据模型
@@ -165,6 +166,24 @@ class TabBarStyle {
 
   factory TabBarStyle.of(Brightness brightness) =>
       brightness == Brightness.dark ? dark : light;
+
+  /// Derives a [TabBarStyle] from a [FlutterLaneThemeData], so the window
+  /// tab bar follows the active FlutterLane theme (including custom themes).
+  factory TabBarStyle.fromFlutterLaneTheme(
+    flutterlane.FlutterLaneThemeData t,
+  ) {
+    return TabBarStyle(
+      stripBg: t.tabBarBackground,
+      pageBg: t.tabActiveBackground,
+      fg: t.tabActiveTextColor,
+      fgMuted: t.tabInactiveTextColor,
+      line: t.tabBorderColor,
+      hoverOverlay: t.tabHoverBackground.withValues(alpha: 0.45),
+      btnHover: t.tabBorderColor.withValues(alpha: 0.5),
+      focus: t.tabActiveTextColor,
+      activeBorder: t.tabBorderColor,
+    );
+  }
 
   static const TabBarStyle light = TabBarStyle(
     stripBg: Color(0xFFDEE1E6),
