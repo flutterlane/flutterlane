@@ -389,6 +389,36 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     setState(() => _ready = true);
   }
 
+  List<TreeNode> _buildTreeNodes(List<_TreeNode> nodes) {
+    return nodes.map((n) {
+      if (n.isFolder) {
+        return TreeNode(
+          id: n.name,
+          label: n.name,
+          isFolder: true,
+          initiallyExpanded: true,
+          children: _buildTreeNodes(n.children),
+        );
+      }
+      final isMarkdown = n.name.endsWith('.md');
+      return TreeNode(
+        id: n.name,
+        label: n.name,
+        icon: isMarkdown ? Icons.article_outlined : Icons.insert_drive_file_outlined,
+      );
+    }).toList();
+  }
+
+  String? _resolveFileName(_Workspace ws, TreeNode node) {
+    if (node.isFolder) return null;
+    for (final f in ws.files) {
+      if (f.name == node.label || f.name.endsWith('/${node.label}')) {
+        return f.name;
+      }
+    }
+    return null;
+  }
+
   void _registerViews(FlutterLaneManager mgr, _Workspace ws) {
     mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'explorer',
@@ -396,10 +426,17 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       icon: Icons.folder_outlined,
       isSystemBuiltIn: true,
       viewBuilder: (ctx, bizCtx, state) {
-        return _ExplorerView(
-          workspace: ws,
-          openFile: _openFileFor(ws),
-          onOpenFile: (name) => _openFileFor(ws).value = name,
+        final openFile = _openFileFor(ws);
+        return ExplorerTreeView(
+          controller: SimpleExplorerController(
+            rootNodes: _buildTreeNodes(ws.tree),
+            onTap: (node) {
+              final fileName = _resolveFileName(ws, node);
+              if (fileName != null) {
+                openFile.value = fileName;
+              }
+            },
+          ),
         );
       },
     ));
@@ -467,9 +504,17 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       viewDisplayName: 'Preview',
       icon: Icons.visibility,
       viewBuilder: (ctx, bizCtx, state) {
-        return _MarkdownPreviewView(
-          workspace: ws,
-          openFile: _openFileFor(ws),
+        final openFile = _openFileFor(ws);
+        return ValueListenableBuilder<String>(
+          valueListenable: openFile,
+          builder: (context, activeFile, _) {
+            return MarkdownEditorPreview(
+              controller: MarkdownController(
+                initialText: ws.contentOf(activeFile),
+              ),
+              mode: MarkdownDisplayMode.tabbed,
+            );
+          },
         );
       },
     ));
@@ -501,7 +546,28 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       viewTypeId: 'copilot',
       viewDisplayName: 'Copilot',
       icon: Icons.auto_fix_high,
-      viewBuilder: (ctx, bizCtx, state) => _CopilotPane(manager: mgr),
+      viewBuilder: (ctx, bizCtx, state) {
+        return AIChatBox(
+          controller: SimpleChatController(
+            onSend: (text, ctrl) {
+              // Simulate AI response
+              Future.delayed(const Duration(milliseconds: 800), () {
+                ctrl.addAssistantMessage(
+                  'This is a demo response. Connect your AI backend here.\n\n'
+                  'You said: "$text"',
+                );
+              });
+            },
+          ),
+          title: 'Copilot',
+          placeholder: 'Ask a question...',
+          suggestions: const [
+            'Explain this code',
+            'Find bugs',
+            'Write tests',
+          ],
+        );
+      },
     ));
   }
 
@@ -845,133 +911,6 @@ class _ActivityBar extends StatelessWidget {
   }
 }
 
-class _CopilotPane extends StatelessWidget {
-  final FlutterLaneManager manager;
-
-  const _CopilotPane({required this.manager});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
-
-    return Container(
-      color: theme.sectionBackground,
-      padding: const EdgeInsets.all(8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_fix_high_rounded,
-                  size: 14, color: Colors.indigoAccent),
-              const SizedBox(width: 6),
-              Text(
-                'Copilot',
-                style: TextStyle(
-                  color: theme.sectionHeaderTextColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              Icon(Icons.more_horiz,
-                  size: 14, color: theme.tabInactiveTextColor),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.tabBarBackground,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.tabBorderColor, width: 1),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Ask Copilot',
-                    style: TextStyle(
-                      color: theme.sectionHeaderTextColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Expanded(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _PromptBubble(
-                              'Generate a VS Code-inspired IDE shell for FlutterLane.'),
-                          SizedBox(height: 6),
-                          _PromptBubble(
-                            'Add a Chrome-like header with tabs and workspace actions.',
-                            accent: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: theme.tabActiveBackground,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.tabBorderColor, width: 1),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.send_rounded,
-                            size: 14, color: Colors.indigoAccent),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Ask a question...',
-                          style: TextStyle(
-                            color: theme.tabInactiveTextColor,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PromptBubble extends StatelessWidget {
-  final String text;
-  final bool accent;
-
-  const _PromptBubble(this.text, {this.accent = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: accent ? Colors.indigo.withValues(alpha: 0.18) : Colors.black26,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 11, color: Colors.white70),
-      ),
-    );
-  }
-}
-
 // ============================================================
 // Workspace-aware views — same view type, per-workspace data
 // ============================================================
@@ -1076,213 +1015,6 @@ class _EditorView extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _ExplorerView extends StatelessWidget {
-  final _Workspace workspace;
-  final ValueNotifier<String> openFile;
-  final ValueChanged<String> onOpenFile;
-
-  const _ExplorerView({
-    required this.workspace,
-    required this.openFile,
-    required this.onOpenFile,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: ListView(
-        padding: const EdgeInsets.all(8),
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 6),
-            child: Text(
-              workspace.title,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ),
-          for (final node in workspace.tree) _buildNode(node),
-        ],
-      ),
-    );
-  }
-
-  /// Resolves the workspace file a tree leaf opens. Tree leaves display a
-  /// short basename while workspace files may be nested paths
-  /// (e.g. 'docs/index.md'), so match by exact name or trailing '/basename'.
-  String? _fileNameFor(_TreeNode node) {
-    if (node.isFolder) return null;
-    for (final f in workspace.files) {
-      if (f.name == node.name ||
-          f.name.endsWith('/${node.name}')) {
-        return f.name;
-      }
-    }
-    return null;
-  }
-
-  Widget _buildNode(_TreeNode node) {
-    if (node.isFolder) {
-      return ExpansionTile(
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.zero,
-        initiallyExpanded: true,
-        title: Row(
-          children: [
-            Icon(Icons.folder_outlined, size: 14, color: Colors.amber[700]),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                node.name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-        children: [for (final child in node.children) _buildNode(child)],
-      );
-    }
-
-    final isMarkdown = node.name.endsWith('.md');
-    final fileName = _fileNameFor(node);
-    return ValueListenableBuilder<String>(
-      valueListenable: openFile,
-      builder: (context, activeFile, _) {
-        final isActive = activeFile == fileName;
-        return InkWell(
-          onTap: fileName != null ? () => onOpenFile(fileName) : null,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 24, top: 2, bottom: 2),
-            child: Row(
-              children: [
-                Icon(
-                  isMarkdown
-                      ? Icons.article_outlined
-                      : Icons.insert_drive_file_outlined,
-                  size: 14,
-                  color: isActive
-                      ? Colors.lightBlue
-                      : isMarkdown
-                          ? Colors.lightBlue[300]
-                          : Colors.grey[600],
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    node.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isActive
-                          ? Colors.lightBlue
-                          : Colors.grey[200],
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    ),
-                  ),
-                ),
-                if (fileName != null)
-                  Icon(
-                    Icons.open_in_new,
-                    size: 11,
-                    color: Colors.grey[700],
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _MarkdownPreviewView extends StatelessWidget {
-  final _Workspace workspace;
-  final ValueNotifier<String> openFile;
-
-  const _MarkdownPreviewView({
-    required this.workspace,
-    required this.openFile,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = FlutterLaneTheme.of(context);
-
-    return ValueListenableBuilder<String>(
-      valueListenable: openFile,
-      builder: (context, activeFile, _) {
-        final lines =
-            workspace.contentOf(activeFile).trimRight().split('\n');
-        return Container(
-          color: theme.paneContentBackground,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final line in lines)
-                  if (line.startsWith('### '))
-                    _previewLine(line.substring(4),
-                        theme.sectionHeaderTextColor, 13)
-                  else if (line.startsWith('## '))
-                    _previewLine(line.substring(3), theme.tabActiveTextColor, 15)
-                  else if (line.startsWith('# '))
-                    _previewLine(line.substring(2), theme.tabActiveTextColor, 18)
-                  else if (line.startsWith('- '))
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8, bottom: 2),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('•  ',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: theme.tabInactiveTextColor)),
-                          Expanded(
-                            child: Text(line.substring(2),
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: theme.sectionHeaderTextColor
-                                        .withValues(alpha: .85))),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (line.trim().isEmpty)
-                    const SizedBox(height: 8)
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(line,
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: theme.sectionHeaderTextColor
-                                  .withValues(alpha: .85))),
-                    ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _previewLine(String text, Color color, double size) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontSize: size,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
     );
   }
 }

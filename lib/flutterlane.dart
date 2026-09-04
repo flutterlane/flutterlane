@@ -39,6 +39,14 @@ export 'src/widgets/section/section_widget.dart';
 export 'src/widgets/pane/pane_widget.dart';
 export 'src/widgets/tab_bar/window_tab_bar.dart';
 
+// ── Default Views ──
+export 'src/views/explorer/tree_node.dart';
+export 'src/views/explorer/explorer_controller.dart';
+export 'src/views/explorer/explorer_tree_view.dart';
+export 'src/views/markdown/markdown_editor_preview.dart';
+export 'src/views/ai_box/chat_controller.dart';
+export 'src/views/ai_box/ai_chat_box.dart';
+
 // ── Interactions ──
 export 'src/interactions/hover/add_swimlane_hot_zone.dart';
 export 'src/interactions/resize/resize_handle.dart';
