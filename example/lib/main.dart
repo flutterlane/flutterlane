@@ -212,6 +212,7 @@ Sections stack vertically and can be collapsed.
 - flex: double
 - fixedWidth: double?
 - sections: List<Section>
+      _WorkspaceFile('markdown_demo.md', ''),
 '''),
     ],
     defaultFile: 'docs/index.md',
