@@ -44,6 +44,9 @@ export 'src/views/explorer/tree_node.dart';
 export 'src/views/explorer/explorer_controller.dart';
 export 'src/views/explorer/explorer_tree_view.dart';
 export 'src/views/markdown/markdown_editor_preview.dart';
+export 'src/views/markdown/markdown_renderer.dart';
+export 'src/views/markdown/markdown_theme.dart';
+export 'src/views/markdown/extensions/callout_syntax.dart';
 export 'src/views/ai_box/chat_controller.dart';
 export 'src/views/ai_box/ai_chat_box.dart';
 

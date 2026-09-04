@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'markdown_renderer.dart';
+import 'markdown_theme.dart';
+
 /// Controller for the markdown editor/preview.
 ///
 /// Manages the document text and notifies listeners on changes.
@@ -234,7 +237,10 @@ class _MarkdownEditorPreviewState extends State<MarkdownEditorPreview>
       padding: EdgeInsets.all(widget.contentPadding),
       child: widget.markdownBuilder != null
           ? widget.markdownBuilder!(widget.controller.text)
-          : DefaultMarkdownWidget(text: widget.controller.text),
+          : MarkdownRenderer(
+              data: widget.controller.text,
+              theme: MarkdownThemeData.dark,
+            ),
     );
   }
 }
