@@ -232,15 +232,21 @@ class _MarkdownEditorPreviewState extends State<MarkdownEditorPreview>
   }
 
   Widget _buildPreview() {
-    return Container(
-      color: const Color(0xFF252526),
-      padding: EdgeInsets.all(widget.contentPadding),
-      child: widget.markdownBuilder != null
-          ? widget.markdownBuilder!(widget.controller.text)
-          : MarkdownRenderer(
-              data: widget.controller.text,
-              theme: MarkdownThemeData.dark,
-            ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 200,
+        maxWidth: double.infinity,
+      ),
+      child: Container(
+        color: const Color(0xFF252526),
+        padding: EdgeInsets.all(widget.contentPadding),
+        child: widget.markdownBuilder != null
+            ? widget.markdownBuilder!(widget.controller.text)
+            : MarkdownRenderer(
+                data: widget.controller.text,
+                theme: MarkdownThemeData.dark,
+              ),
+      ),
     );
   }
 }
