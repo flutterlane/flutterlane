@@ -864,15 +864,19 @@ class _ChromeHeaderState extends State<_ChromeHeader> {
           ),
         ),
         if (_menuOpen)
-          Positioned.fill(
+          Positioned(
+            top: 42,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: GestureDetector(
               onTap: () => setState(() => _menuOpen = false),
-              behavior: HitTestBehavior.translucent,
+              behavior: HitTestBehavior.opaque,
               child: Stack(
                 children: [
                   Positioned(
-                    top: 42,
-                    left: 10 + 12 + 16 + 14 + 12, // padding + traffic + gap + icon + gap
+                    top: 0,
+                    left: 10 + 12 + 16 + 14 + 12,
                     child: _MenuDropdown(
                       items: _menuItems(),
                       theme: theme,
