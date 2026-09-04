@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutterlane/flutterlane.dart';
 
@@ -76,8 +78,8 @@ const _emberTheme = FlutterLaneThemeData(
 
 class _WorkspaceFile {
   final String name;
-  final String content;
-  const _WorkspaceFile(this.name, this.content);
+  String content;
+  _WorkspaceFile(this.name, this.content);
 }
 
 class _TreeNode {
@@ -122,7 +124,7 @@ class _Workspace {
   }
 }
 
-const List<_Workspace> _kWorkspaces = [
+final List<_Workspace> _kWorkspaces = [
   // ── FlutterLane — product site (the default, non-closable tab) ──
   _Workspace(
     id: 'flutterlane',
@@ -191,10 +193,15 @@ flutter pub add flutterlane
           _TreeNode.file('swimlane.md'),
         ]),
       ]),
+      _TreeNode.file('markdown_demo.md'),
     ],
     files: [
-_WorkspaceFile('docs/index.md', ''),
+      _WorkspaceFile('docs/index.md', '''
+# FlutterLane Documentation
 
+Welcome to the FlutterLane documentation. This workspace demonstrates
+the Markdown editor and preview capabilities.
+'''),
       _WorkspaceFile('docs/guides/layout.md', '''
 # Layout Guide
 
@@ -212,8 +219,8 @@ Sections stack vertically and can be collapsed.
 - flex: double
 - fixedWidth: double?
 - sections: List<Section>
-      _WorkspaceFile('markdown_demo.md', ''),
 '''),
+      _WorkspaceFile('markdown_demo.md', ''),
     ],
     defaultFile: 'docs/index.md',
   ),
@@ -376,6 +383,24 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 
     // Apply the dedicated layout of the currently active tab.
     await _applyLayoutForActiveTab();
+
+    // Read markdown_demo.md from disk at runtime so we don't need to embed
+    // it in a Dart string (which would break on $ for LaTeX).
+    try {
+      final mdFile = File('markdown_demo.md');
+      if (await mdFile.exists()) {
+        final content = await mdFile.readAsString();
+        final ws = _workspaceById('designdocs');
+        for (final f in ws.files) {
+          if (f.name == 'markdown_demo.md') {
+            f.content = content;
+            break;
+          }
+        }
+      }
+    } catch (_) {
+      // Ignore — file may not exist in all build environments.
+    }
 
     setState(() => _ready = true);
   }
