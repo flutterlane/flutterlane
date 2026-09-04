@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Provides the canonical storage paths for the `.flutterlane/` directory.
+///
+/// Supports both global paths (for `workspaces.json`) and workspace-scoped
+/// paths (for per-workspace layouts and theme settings).
 class StoragePath {
   StoragePath._();
 
@@ -19,7 +22,6 @@ class StoragePath {
   /// Must be called once at engine startup to resolve the working directory.
   static Future<void> init() async {
     if (kIsWeb) {
-      // Web has no native documents directory; persistence is best-effort.
       _baseDir = '';
       return;
     }
@@ -31,18 +33,39 @@ class StoragePath {
     }
   }
 
-  /// Path to the main layouts JSON file.
-  static String get layoutsFile => '$_baseDir/layouts.json';
+  // ── Global paths ──
 
-  /// Path to the theme settings file.
-  static String get themeSettingsFile => '$_baseDir/theme_settings.json';
+  /// Path to the workspaces registry JSON file.
+  static String get workspacesFile => '$_baseDir/workspaces.json';
 
   /// Path to the engine config file.
   static String get engineConfigFile => '$_baseDir/engine_config.json';
 
+  // ── Workspace-scoped paths ──
+
+  /// Returns the directory for a specific workspace.
+  static String workspaceDir(String workspaceId) =>
+      '$_baseDir/workspaces/$workspaceId';
+
+  /// Returns the layouts file for a specific workspace.
+  static String workspaceLayoutsFile(String workspaceId) =>
+      '${workspaceDir(workspaceId)}/layouts.json';
+
+  /// Returns the theme settings file for a specific workspace.
+  static String workspaceThemeFile(String workspaceId) =>
+      '${workspaceDir(workspaceId)}/theme_settings.json';
+
   /// Ensures the base directory exists.
   static Future<void> ensureExists() async {
     final dir = Directory(_baseDir);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+  }
+
+  /// Ensures the directory for a specific workspace exists.
+  static Future<void> ensureWorkspaceExists(String workspaceId) async {
+    final dir = Directory(workspaceDir(workspaceId));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }

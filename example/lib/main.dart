@@ -217,7 +217,7 @@ class FlutterLaneExampleApp extends StatefulWidget {
 }
 
 class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
-  final FlutterLaneManager _manager = FlutterLaneManager();
+  final Map<String, FlutterLaneManager> _managers = {};
   final TabBarController _windowTabs = TabBarController(
     initialTabs: [
       for (final ws in _kWorkspaces)
@@ -229,6 +229,11 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
         ),
     ],
   );
+
+  FlutterLaneManager get _manager =>
+      _managers[_activeWorkspaceId] ?? _managers.values.first;
+
+  String _activeWorkspaceId = _kWorkspaces.first.id;
 
   /// Shared "open file" per workspace so clicking a markdown file in the
   /// Explorer opens it in the Editor (and Preview) panes of that workspace.
@@ -249,13 +254,28 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
   }
 
   Future<void> _init() async {
-    _registerViews();
+    // Create one isolated manager per workspace.
+    for (final ws in _kWorkspaces) {
+      final workspace = Workspace(
+        workspaceId: ws.id,
+        workspaceName: ws.title,
+        themeType: FlutterLaneThemeType.dark,
+      );
+      final mgr = FlutterLaneManager(workspace: workspace);
+      _registerViews(mgr, ws);
+      await mgr.init();
+      _managers[ws.id] = mgr;
 
-    await _manager.init();
-    await _manager.themeManager.setTheme(FlutterLaneThemeType.dark);
-
-    // Restore per-workspace layouts persisted from previous sessions.
-    await _restoreWorkspaceSnapshots();
+      // Ensure a persisted layout snapshot exists for this workspace.
+      if (mgr.layouts.length <= 1 && mgr.layouts.first.isSystemDefault) {
+        final snapshot = LayoutState(
+          layoutName: ws.title,
+          swimlanes: _buildWorkspaceLayout(ws),
+        );
+        await mgr.addLayoutSnapshot(snapshot);
+        await mgr.switchLayout(snapshot.snapshotId);
+      }
+    }
 
     // Apply the dedicated layout of the currently active tab.
     await _applyLayoutForActiveTab();
@@ -263,30 +283,13 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     setState(() => _ready = true);
   }
 
-  /// Ensures every workspace owns a persisted LayoutState snapshot
-  /// (tagged by businessContext = workspace id). On later launches the
-  /// manager reloads these snapshots from disk, so each window tab's
-  /// layout — swimlanes, sections, panes, collapse/resize state —
-  /// survives app restarts.
-  Future<void> _restoreWorkspaceSnapshots() async {
-    for (final ws in _kWorkspaces) {
-      if (_manager.layoutForContext(ws.id) != null) continue;
-      await _manager.addLayoutSnapshot(LayoutState(
-        layoutName: ws.title,
-        businessContext: ws.id,
-        swimlanes: _buildWorkspaceLayout(ws),
-      ));
-    }
-  }
-
-  void _registerViews() {
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+  void _registerViews(FlutterLaneManager mgr, _Workspace ws) {
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'explorer',
       viewDisplayName: 'Explorer',
       icon: Icons.folder_outlined,
       isSystemBuiltIn: true,
       viewBuilder: (ctx, bizCtx, state) {
-        final ws = _workspaceById(bizCtx);
         return _ExplorerView(
           workspace: ws,
           openFile: _openFileFor(ws),
@@ -295,55 +298,54 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       },
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'search',
       viewDisplayName: 'Search',
       icon: Icons.search,
       viewBuilder: (ctx, bizCtx, state) => const _SearchView(),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'terminal',
       viewDisplayName: 'Terminal',
       icon: Icons.terminal,
       viewBuilder: (ctx, bizCtx, state) =>
-          _TerminalView(workspace: _workspaceById(bizCtx)),
+          _TerminalView(workspace: ws),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'output',
       viewDisplayName: 'Output',
       icon: Icons.output,
       viewBuilder: (ctx, bizCtx, state) => const _OutputView(),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'problems',
       viewDisplayName: 'Problems',
       icon: Icons.error_outline,
       viewBuilder: (ctx, bizCtx, state) => const _ProblemsView(),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'debug_console',
       viewDisplayName: 'Debug Console',
       icon: Icons.bug_report,
       viewBuilder: (ctx, bizCtx, state) => const _DebugConsoleView(),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'ports',
       viewDisplayName: 'Ports',
       icon: Icons.lan,
       viewBuilder: (ctx, bizCtx, state) => const _PortsView(),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'preview',
       viewDisplayName: 'Preview',
       icon: Icons.visibility,
       viewBuilder: (ctx, bizCtx, state) {
-        final ws = _workspaceById(bizCtx);
         return _MarkdownPreviewView(
           workspace: ws,
           openFile: _openFileFor(ws),
@@ -351,23 +353,22 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       },
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'activitybar',
       viewDisplayName: 'Activity Bar',
       icon: Icons.apps,
       viewBuilder: (ctx, bizCtx, state) => _ActivityBar(
-        manager: _manager,
+        manager: mgr,
         activeActivity: _activeActivity,
         onActivityTap: _handleActivityTap,
       ),
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'editor',
       viewDisplayName: 'Editor',
       icon: Icons.code,
       viewBuilder: (ctx, bizCtx, state) {
-        final ws = _workspaceById(bizCtx);
         return _EditorView(
           workspace: ws,
           openFile: _openFileFor(ws),
@@ -375,11 +376,11 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       },
     ));
 
-    _manager.registry.registerPaneView(ViewInstanceMeta(
+    mgr.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'copilot',
       viewDisplayName: 'Copilot',
       icon: Icons.auto_fix_high,
-      viewBuilder: (ctx, bizCtx, state) => _CopilotPane(manager: _manager),
+      viewBuilder: (ctx, bizCtx, state) => _CopilotPane(manager: mgr),
     ));
   }
 
@@ -397,27 +398,27 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
   }
 
   Future<void> _applyLayoutForActiveTab() async {
-    if (_manager.activeLayout == null) return;
-
     final activeId = _windowTabs.active();
     final tab = activeId == null
         ? _windowTabs.tabs.first
         : (_windowTabs.get(activeId) ?? _windowTabs.tabs.first);
     final ws = _workspaceById(tab.businessId ?? tab.id ?? _kWorkspaces.first.id);
 
-    // Each window tab owns its persisted LayoutState snapshot
-    // (businessContext = workspace id). Switching tabs = switching snapshots.
-    var snapshot = _manager.layoutForContext(ws.id);
-    if (snapshot == null) {
-      snapshot = LayoutState(
-        layoutName: ws.title,
-        businessContext: ws.id,
-        swimlanes: _buildWorkspaceLayout(ws),
-      );
-      await _manager.addLayoutSnapshot(snapshot);
+    // Switch to this workspace's manager.
+    if (_activeWorkspaceId != ws.id) {
+      _activeWorkspaceId = ws.id;
     }
-    if (_manager.activeLayout?.snapshotId != snapshot.snapshotId) {
-      await _manager.switchLayout(snapshot.snapshotId);
+
+    final mgr = _manager;
+    if (mgr.activeLayout == null) return;
+
+    // Find the layout snapshot for this workspace and activate it.
+    final snapshot = mgr.layouts.firstWhere(
+      (l) => l.layoutName == ws.title,
+      orElse: () => mgr.layouts.first,
+    );
+    if (mgr.activeLayout?.snapshotId != snapshot.snapshotId) {
+      await mgr.switchLayout(snapshot.snapshotId);
     }
     if (mounted) setState(() {});
   }
@@ -437,8 +438,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 
   Pane _pane(String viewTypeId, _Workspace ws) => Pane(
         paneId: generateId(),
-        viewInstance:
-            ViewInstance(viewTypeId: viewTypeId, businessContext: ws.id),
+        viewInstance: ViewInstance(viewTypeId: viewTypeId),
       );
 
   Swimlane _activityBarLane() {
@@ -586,18 +586,6 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
         .where((l) => l.snapshotId == snapshotId)
         .firstOrNull;
     if (layout == null) return;
-    if (layout.businessContext.isNotEmpty) {
-      for (final ws in _kWorkspaces) {
-        if (ws.id == layout.businessContext) {
-          final tab = _windowTabs.tabs.firstWhere(
-            (t) => t.businessId == ws.id,
-            orElse: () => _windowTabs.tabs.first,
-          );
-          if (tab.id != null) _windowTabs.activate(tab.id!);
-          return;
-        }
-      }
-    }
     _manager.switchLayout(snapshotId);
   }
 
@@ -605,20 +593,16 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
   /// persisted snapshot from a pristine copy, then activate its tab.
   Future<void> _handleResetLayout() async {
     final defaultWs = _kWorkspaces.first;
-    var snapshot = _manager.layoutForContext(defaultWs.id);
-    if (snapshot == null) {
-      snapshot = LayoutState(
-        layoutName: defaultWs.title,
-        businessContext: defaultWs.id,
-        swimlanes: _buildWorkspaceLayout(defaultWs),
-      );
-      await _manager.addLayoutSnapshot(snapshot);
-    } else {
-      snapshot.swimlanes = _buildWorkspaceLayout(defaultWs);
-      await _manager.save();
-    }
-    if (_manager.activeLayout?.snapshotId != snapshot.snapshotId) {
-      await _manager.switchLayout(snapshot.snapshotId);
+    final mgr = _managers[defaultWs.id];
+    if (mgr == null) return;
+    final snapshot = mgr.layouts.firstWhere(
+      (l) => l.layoutName == defaultWs.title,
+      orElse: () => mgr.layouts.first,
+    );
+    snapshot.swimlanes = _buildWorkspaceLayout(defaultWs);
+    await mgr.save();
+    if (mgr.activeLayout?.snapshotId != snapshot.snapshotId) {
+      await mgr.switchLayout(snapshot.snapshotId);
     }
     final tab = _windowTabs.tabs.firstWhere(
       (t) => t.businessId == defaultWs.id,
@@ -627,6 +611,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     if (tab.id != null && _windowTabs.active() != tab.id) {
       _windowTabs.activate(tab.id!);
     }
+    _activeWorkspaceId = defaultWs.id;
     if (mounted) setState(() {});
   }
 }

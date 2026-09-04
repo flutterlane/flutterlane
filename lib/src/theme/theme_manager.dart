@@ -6,9 +6,16 @@ import 'flutter_lane_theme.dart';
 import '../storage/storage_path.dart';
 
 /// Manages the active FlutterLane theme with persistence and system-adaptive support.
+///
+/// Theme state is scoped to a specific workspace. Each workspace has its own
+/// theme settings file under `.flutterlane/workspaces/{workspaceId}/`.
 class ThemeManager extends ChangeNotifier {
+  final String workspaceId;
+
   FlutterLaneThemeType _currentType = FlutterLaneThemeType.light;
   bool _followSystem = true;
+
+  ThemeManager({required this.workspaceId});
 
   FlutterLaneThemeType get currentType => _currentType;
   FlutterLaneThemeData get currentTheme =>
@@ -58,7 +65,8 @@ class ThemeManager extends ChangeNotifier {
 
   // ── Persistence ──
 
-  File get _settingsFile => File('${StoragePath.baseDir}/theme_settings.json');
+  File get _settingsFile =>
+      File(StoragePath.workspaceThemeFile(workspaceId));
 
   Future<void> _loadSettings() async {
     try {
@@ -80,10 +88,7 @@ class ThemeManager extends ChangeNotifier {
 
   Future<void> _saveSettings() async {
     try {
-      final dir = Directory(StoragePath.baseDir);
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+      await StoragePath.ensureWorkspaceExists(workspaceId);
       final file = _settingsFile;
       await file.writeAsString(jsonEncode({
         'themeType': _currentType.name,

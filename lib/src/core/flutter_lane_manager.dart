@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/layout_state.dart';
+import '../models/workspace.dart';
 import '../models/swimlane.dart';
 import '../models/section.dart';
 import '../models/pane.dart';
@@ -12,19 +13,38 @@ import '../registry/flutter_lane_registry.dart';
 
 /// Central orchestrator for the FlutterLane layout engine.
 ///
-/// Manages all layout snapshots, the active layout, theme, and registry.
-/// This is the single source of truth consumed by the widget tree.
+/// Each [FlutterLaneManager] is scoped to a single [Workspace], owning its own
+/// layouts, theme, and view registry. Multiple managers (one per workspace) can
+/// coexist independently — no state is shared between them.
+///
+/// The app creates one manager per workspace and swaps them in the widget tree
+/// to switch contexts:
+///
+/// ```dart
+/// final crmManager = FlutterLaneManager(workspace: crmWorkspace);
+/// final productManager = FlutterLaneManager(workspace: productWorkspace);
+///
+/// // Switch by swapping which manager is passed to FlutterLaneWorkbench
+/// setState(() => _activeManager = crmManager);
+/// ```
 class FlutterLaneManager extends ChangeNotifier {
-  final LayoutStorage _storage = LayoutStorage();
-  final ThemeManager themeManager = ThemeManager();
+  /// The workspace this manager is scoped to.
+  final Workspace workspace;
+
+  late final LayoutStorage _storage;
+  late final ThemeManager themeManager;
   final FlutterLaneRegistry registry = FlutterLaneRegistry();
 
-  /// All saved layout snapshots.
+  /// All layout snapshots for this workspace.
   List<LayoutState> _layouts = [];
 
   /// The currently active layout state.
   LayoutState? _activeLayout;
   Future<void> _persistQueue = Future<void>.value();
+
+  FlutterLaneManager({required this.workspace})
+      : _storage = LayoutStorage(workspaceId: workspace.workspaceId),
+        themeManager = ThemeManager(workspaceId: workspace.workspaceId);
 
   List<LayoutState> get layouts => List.unmodifiable(_layouts);
   LayoutState? get activeLayout => _activeLayout;
@@ -32,16 +52,16 @@ class FlutterLaneManager extends ChangeNotifier {
   /// The current theme data (convenience getter).
   FlutterLaneThemeData get currentTheme => themeManager.currentTheme;
 
-  /// ── Initialization ──
+  // ── Initialization ──
 
-  /// Initializes the engine: storage paths, theme, and loads persisted layouts.
+  /// Initializes the engine: loads persisted layouts and theme for this workspace.
   Future<void> init() async {
     if (kIsWeb) {
-      // Browser demos use an in-memory layout; native persistence is desktop-only.
       themeManager.addListener(() => notifyListeners());
       _layouts = [LayoutState.systemDefault()];
       _activeLayout = _layouts.first;
       _activeLayout!.isCurrentActive = true;
+      workspace.activeLayoutId = _activeLayout!.snapshotId;
       notifyListeners();
       return;
     }
@@ -68,6 +88,7 @@ class FlutterLaneManager extends ChangeNotifier {
       },
     );
     _activeLayout!.isCurrentActive = true;
+    workspace.activeLayoutId = _activeLayout!.snapshotId;
 
     notifyListeners();
   }
@@ -78,6 +99,7 @@ class FlutterLaneManager extends ChangeNotifier {
   Future<void> _persist() {
     final next = _persistQueue.then((_) async {
       if (_activeLayout != null) _activeLayout!.touch();
+      workspace.activeLayoutId = _activeLayout?.snapshotId;
       try {
         await _storage.writeAll(_layouts);
       } catch (_) {
@@ -102,16 +124,8 @@ class FlutterLaneManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Returns the layout snapshot bound to [businessContext], if any.
-  LayoutState? layoutForContext(String businessContext) {
-    for (final l in _layouts) {
-      if (l.businessContext == businessContext) return l;
-    }
-    return null;
-  }
-
-  /// Adds a fully-formed snapshot (e.g. a workspace layout) to the store
-  /// and persists it. Does not change the active layout.
+  /// Adds a fully-formed snapshot to the store and persists it.
+  /// Does not change the active layout.
   Future<void> addLayoutSnapshot(LayoutState layout) async {
     if (_layouts.any((l) => l.snapshotId == layout.snapshotId)) return;
     _layouts.add(layout);
@@ -234,10 +248,6 @@ class FlutterLaneManager extends ChangeNotifier {
   }
 
   /// Adjusts the flex of a section and its neighbor to achieve a resize.
-  ///
-  /// When the user drags the handle between section A (top) and section B
-  /// (bottom) by [deltaDy] pixels, section A's flex decreases and B's
-  /// increases by the same amount, keeping the total constant.
   void resizeSection(
       String swimlaneId, String sectionId, double deltaDy) {
     final swimlane = _findSwimlane(swimlaneId);
@@ -251,14 +261,11 @@ class FlutterLaneManager extends ChangeNotifier {
     final topFlex = top.flex ?? 1.0;
     final bottomFlex = bottom.flex ?? 1.0;
 
-    // deltaDy > 0 means dragging down → top grows, bottom shrinks
     final change = deltaDy.abs();
     if (deltaDy > 0) {
-      // Dragging down: top section gets bigger
       top.flex = (topFlex + change).clamp(0.1, 100.0);
       bottom.flex = (bottomFlex - change).clamp(0.1, 100.0);
     } else {
-      // Dragging up: top section gets smaller
       top.flex = (topFlex - change).clamp(0.1, 100.0);
       bottom.flex = (bottomFlex + change).clamp(0.1, 100.0);
     }
@@ -326,9 +333,6 @@ class FlutterLaneManager extends ChangeNotifier {
   }
 
   /// Switches to a different layout snapshot by ID.
-  ///
-  /// The active layout updates synchronously (listeners fire immediately);
-  /// persistence is queued in the background so tab switches stay snappy.
   Future<void> switchLayout(String snapshotId) async {
     _activeLayout?.isCurrentActive = false;
     _activeLayout = _layouts.firstWhere(
@@ -336,6 +340,7 @@ class FlutterLaneManager extends ChangeNotifier {
       orElse: () => _layouts.first,
     );
     _activeLayout!.isCurrentActive = true;
+    workspace.activeLayoutId = _activeLayout!.snapshotId;
     notifyListeners();
     _persist();
   }

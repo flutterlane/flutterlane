@@ -5,18 +5,14 @@ import '../utils/id.dart';
 /// Top-level layout snapshot model.
 ///
 /// Represents a complete, serializable layout configuration that can be
-/// persisted locally as JSON. Only one LayoutState is active at any time.
+/// persisted locally as JSON. Only one LayoutState is active at any time
+/// within a workspace.
 class LayoutState {
   /// Unique snapshot identifier (UUID).
   final String snapshotId;
 
   /// User-defined layout name.
   String layoutName;
-
-  /// Business context this snapshot is bound to (e.g. workspace id).
-  /// Empty means a generic / manual layout. Layouts sharing a context are
-  /// interchangeable snapshots for the same workspace.
-  final String businessContext;
 
   /// Whether this is the system-default layout (immutable, undeletable).
   final bool isSystemDefault;
@@ -36,7 +32,6 @@ class LayoutState {
   LayoutState({
     String? snapshotId,
     this.layoutName = 'Default',
-    this.businessContext = '',
     this.isSystemDefault = false,
     this.isCurrentActive = false,
     int? createTime,
@@ -57,7 +52,6 @@ class LayoutState {
     return LayoutState(
       snapshotId: snapshotId,
       layoutName: layoutName,
-      businessContext: businessContext,
       isSystemDefault: isSystemDefault,
       isCurrentActive: isCurrentActive,
       createTime: createTime,
@@ -69,7 +63,6 @@ class LayoutState {
   Map<String, dynamic> toJson() => {
         'snapshotId': snapshotId,
         'layoutName': layoutName,
-        'businessContext': businessContext,
         'isSystemDefault': isSystemDefault,
         'isCurrentActive': isCurrentActive,
         'createTime': createTime,
@@ -81,7 +74,6 @@ class LayoutState {
     return LayoutState(
       snapshotId: json['snapshotId'] as String?,
       layoutName: json['layoutName'] as String? ?? 'Default',
-      businessContext: json['businessContext'] as String? ?? '',
       isSystemDefault: json['isSystemDefault'] as bool? ?? false,
       isCurrentActive: json['isCurrentActive'] as bool? ?? false,
       createTime: json['createTime'] as int?,

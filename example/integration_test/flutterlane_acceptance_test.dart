@@ -54,7 +54,11 @@ void main() {
       );
 
   setUp(() {
-    manager = FlutterLaneManager();
+    final workspace = Workspace(
+      workspaceId: 'acceptance-test',
+      workspaceName: 'Acceptance Test',
+    );
+    manager = FlutterLaneManager(workspace: workspace);
     registry = manager.registry;
     for (final type in ['editor', 'search', 'terminal', 'output']) {
       registry.registerPaneView(ViewInstanceMeta(
@@ -183,7 +187,12 @@ void main() {
     active.swimlanes.first.flex = 1.75;
     await manager.save();
 
-    final reopened = FlutterLaneManager();
+    final reopened = FlutterLaneManager(
+      workspace: Workspace(
+        workspaceId: 'acceptance-test',
+        workspaceName: 'Acceptance Test',
+      ),
+    );
     await reopened.init();
     final restored = reopened.activeLayout!;
 

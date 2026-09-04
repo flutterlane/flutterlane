@@ -32,11 +32,19 @@ void main() {
     );
   }
 
+  FlutterLaneManager _makeManager({String workspaceId = 'test-ws'}) {
+    final workspace = Workspace(
+      workspaceId: workspaceId,
+      workspaceName: 'Test Workspace',
+    );
+    return FlutterLaneManager(workspace: workspace);
+  }
+
   group('FlutterLaneManager CRUD operations', () {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = _makeManager();
       manager.loadLayout(_makeLayout());
     });
 
@@ -128,7 +136,7 @@ void main() {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = _makeManager();
       manager.loadLayout(_makeLayout());
     });
 
@@ -223,7 +231,7 @@ void main() {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = _makeManager();
       manager.loadLayout(_makeLayout());
     });
 
@@ -258,7 +266,7 @@ void main() {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = _makeManager();
       manager.loadLayout(_makeLayout());
     });
 
@@ -275,7 +283,6 @@ void main() {
     });
 
     test('deleteLayout protects system default', () async {
-      // Load a system-default layout (it gets added to the layouts list).
       final systemDefault = LayoutState.systemDefault();
       manager.loadLayout(systemDefault);
 
@@ -295,64 +302,44 @@ void main() {
     });
   });
 
-  group('FlutterLaneManager context-bound snapshots', () {
+  group('FlutterLaneManager workspace-scoped snapshots', () {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = _makeManager();
       manager.loadLayout(_makeLayout());
-    });
-
-    test('layoutForContext returns the matching snapshot', () {
-      final wsLayout = LayoutState(
-        layoutName: 'FlutterLane',
-        businessContext: 'ws-flutterlane',
-        swimlanes: [],
-      );
-      manager.loadLayout(wsLayout);
-
-      expect(
-        manager.layoutForContext('ws-flutterlane')?.snapshotId,
-        wsLayout.snapshotId,
-      );
-      expect(manager.layoutForContext('ws-other'), isNull);
     });
 
     test('addLayoutSnapshot persists into the layouts store', () async {
       final wsLayout = LayoutState(
         layoutName: 'Design Docs',
-        businessContext: 'ws-designdocs',
         swimlanes: [],
       );
       await manager.addLayoutSnapshot(wsLayout);
 
       expect(manager.layouts, contains(wsLayout));
-      expect(manager.layoutForContext('ws-designdocs'), same(wsLayout));
     });
 
     test('addLayoutSnapshot skips duplicate snapshot ids', () async {
       final first = LayoutState(
         layoutName: 'A',
-        businessContext: 'ws-a',
         swimlanes: [],
       );
       final duplicate = LayoutState(
         snapshotId: first.snapshotId,
         layoutName: 'A2',
-        businessContext: 'ws-a',
         swimlanes: [],
       );
       await manager.addLayoutSnapshot(first);
       await manager.addLayoutSnapshot(duplicate);
 
-      expect(manager.layoutForContext('ws-a'), same(first));
-      expect(manager.layoutForContext('ws-a')?.layoutName, 'A');
+      expect(manager.layouts.where((l) => l.layoutName == 'A').length, 1);
+      expect(manager.layouts.where((l) => l.layoutName == 'A').first, same(first));
     });
 
-    test('switchLayout switches to the context snapshot', () async {
+    test('switchLayout switches to the target snapshot', () async {
       final wsLayout = LayoutState(
         layoutName: 'GitHub',
-        businessContext: 'ws-github',
         swimlanes: [],
       );
       await manager.addLayoutSnapshot(wsLayout);
@@ -360,7 +347,17 @@ void main() {
       await manager.switchLayout(wsLayout.snapshotId);
       expect(manager.activeLayout, same(wsLayout));
       expect(manager.activeLayout!.isCurrentActive, isTrue);
-      expect(manager.activeLayout!.businessContext, 'ws-github');
+    });
+
+    test('workspace tracks active layout ID', () async {
+      final wsLayout = LayoutState(
+        layoutName: 'Tracked',
+        swimlanes: [],
+      );
+      await manager.addLayoutSnapshot(wsLayout);
+      await manager.switchLayout(wsLayout.snapshotId);
+
+      expect(manager.workspace.activeLayoutId, wsLayout.snapshotId);
     });
   });
 
@@ -368,7 +365,7 @@ void main() {
     late ThemeManager themeManager;
 
     setUp(() {
-      themeManager = ThemeManager();
+      themeManager = ThemeManager(workspaceId: 'test-ws');
     });
 
     test('defaults to light theme', () {

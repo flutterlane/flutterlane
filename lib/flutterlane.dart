@@ -11,6 +11,7 @@ export 'src/core/flutter_lane_manager.dart';
 export 'src/utils/id.dart';
 
 // ── Models ──
+export 'src/models/workspace.dart';
 export 'src/models/layout_state.dart';
 export 'src/models/swimlane.dart';
 export 'src/models/section.dart';

@@ -92,7 +92,9 @@ void main() {
     late FlutterLaneManager manager;
 
     setUp(() {
-      manager = FlutterLaneManager();
+      manager = FlutterLaneManager(
+        workspace: Workspace(workspaceId: 'test-ws'),
+      );
     });
 
     testWidgets('renders a swimlane from the active layout', (tester) async {

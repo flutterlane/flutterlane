@@ -6,13 +6,17 @@ import 'storage_path.dart';
 
 /// Handles local JSON persistence of LayoutState snapshots.
 ///
-/// All layout snapshots are stored as a single JSON array in `.flutterlane/layouts.json`.
-/// Changes are auto-saved (covered) on every layout mutation.
+/// Storage is scoped to a specific workspace. Each workspace has its own
+/// `layouts.json` file under `.flutterlane/workspaces/{workspaceId}/`.
 class LayoutStorage {
-  /// Reads all stored layout states from disk.
+  final String workspaceId;
+
+  LayoutStorage({required this.workspaceId});
+
+  /// Reads all stored layout states for this workspace from disk.
   Future<List<LayoutState>> readAll() async {
     try {
-      final file = File(StoragePath.layoutsFile);
+      final file = File(StoragePath.workspaceLayoutsFile(workspaceId));
       if (!await file.exists()) return [];
       final content = await file.readAsString();
       if (content.trim().isEmpty) return [];
@@ -25,20 +29,20 @@ class LayoutStorage {
     }
   }
 
-  /// Writes all layout states to disk (full overwrite).
+  /// Writes all layout states for this workspace to disk (full overwrite).
   Future<void> writeAll(List<LayoutState> layouts) async {
-    await StoragePath.ensureExists();
-    final file = File(StoragePath.layoutsFile);
+    await StoragePath.ensureWorkspaceExists(workspaceId);
+    final file = File(StoragePath.workspaceLayoutsFile(workspaceId));
     final json = layouts.map((l) => l.toJson()).toList();
     await file.writeAsString(
       const JsonEncoder.withIndent('  ').convert(json),
     );
   }
 
-  /// Reads the ID of the currently active layout.
+  /// Reads the ID of the currently active layout for this workspace.
   Future<String?> readActiveId() async {
     try {
-      final file = File(StoragePath.layoutsFile);
+      final file = File(StoragePath.workspaceLayoutsFile(workspaceId));
       if (!await file.exists()) return null;
       final content = await file.readAsString();
       if (content.trim().isEmpty) return null;
