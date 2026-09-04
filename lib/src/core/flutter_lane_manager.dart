@@ -52,27 +52,38 @@ class FlutterLaneManager extends ChangeNotifier {
   /// The current theme data (convenience getter).
   FlutterLaneThemeData get currentTheme => themeManager.currentTheme;
 
-  /// Applies a fully custom theme, overriding the built-in theme.
-  ///
-  /// Pass `null` to clear the custom theme and revert to the built-in one.
+  /// All registered custom themes (unmodifiable view).
+  Map<String, FlutterLaneThemeData> get allCustomThemes =>
+      themeManager.allCustomThemes;
+
+  /// The ID of the currently active custom theme, or null.
+  String? get activeCustomThemeId => themeManager.activeCustomThemeId;
+
+  /// Registers and immediately activates a named custom theme.
   ///
   /// ```dart
-  /// // Apply a custom theme
-  /// manager.setCustomTheme(const FlutterLaneThemeData(
+  /// await manager.setCustomTheme('my-brand', const FlutterLaneThemeData(
   ///   swimlaneBackground: Color(0xFF1A1A2E),
   ///   // ... all 27 color properties
   /// ));
-  ///
-  /// // Revert to built-in
-  /// manager.setCustomTheme(null);
   /// ```
-  void setCustomTheme(FlutterLaneThemeData? theme) {
-    if (theme == null) {
-      themeManager.clearCustomTheme();
-    } else {
-      themeManager.setCustomTheme(theme);
-    }
-  }
+  Future<void> setCustomTheme(String id, FlutterLaneThemeData theme) =>
+      themeManager.setCustomTheme(id, theme);
+
+  /// Activates a previously registered custom theme by ID.
+  Future<void> switchToCustomTheme(String id) =>
+      themeManager.switchToCustomTheme(id);
+
+  /// Removes a registered custom theme. If it was active, reverts to built-in.
+  Future<void> unregisterCustomTheme(String id) =>
+      themeManager.unregisterCustomTheme(id);
+
+  /// Returns a registered custom theme by ID, or null.
+  FlutterLaneThemeData? getCustomTheme(String id) =>
+      themeManager.getCustomTheme(id);
+
+  /// Clears the active custom theme, reverting to the built-in theme.
+  Future<void> clearCustomTheme() => themeManager.clearCustomTheme();
 
   // ── Initialization ──
 

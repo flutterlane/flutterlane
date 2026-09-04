@@ -421,7 +421,7 @@ void main() {
       expect(mid, isNot(equals(FlutterLaneThemeData.dark)));
     });
 
-    test('setCustomTheme overrides built-in theme', () async {
+    test('setCustomTheme registers and activates by id', () async {
       const custom = FlutterLaneThemeData(
         swimlaneBackground: Color(0xFF1A1A2E),
         swimlaneDivider: Color(0xFF16213E),
@@ -451,9 +451,91 @@ void main() {
         scrollbarThumbColor: Color(0xFF533483),
         scrollbarTrackColor: Color(0x00000000),
       );
-      await themeManager.setCustomTheme(custom);
+      await themeManager.setCustomTheme('brand-a', custom);
       expect(themeManager.hasCustomTheme, isTrue);
+      expect(themeManager.activeCustomThemeId, 'brand-a');
       expect(themeManager.currentTheme, custom);
+    });
+
+    test('registerCustomTheme without activating', () async {
+      const custom = FlutterLaneThemeData(
+        swimlaneBackground: Color(0xFF000000),
+        swimlaneDivider: Color(0xFF111111),
+        sectionBackground: Color(0xFF000000),
+        sectionHeaderBackground: Color(0xFF111111),
+        sectionHeaderTextColor: Color(0xFFFFFFFF),
+        sectionBorderColor: Color(0xFF222222),
+        tabBarBackground: Color(0xFF111111),
+        tabActiveBackground: Color(0xFF000000),
+        tabActiveTextColor: Color(0xFFFFFFFF),
+        tabInactiveTextColor: Color(0xFF888888),
+        tabHoverBackground: Color(0xFF222222),
+        tabBorderColor: Color(0xFF222222),
+        paneContentBackground: Color(0xFF000000),
+        resizeHandleColor: Color(0xFF333333),
+        resizeHandleHoverColor: Color(0xFF555555),
+        hoverZoneColor: Color(0x20FFFFFF),
+        hoverZoneActiveColor: Color(0x60FFFFFF),
+        dragPlaceholderColor: Color(0x30FFFFFF),
+        dragPreviewColor: Color(0x80555555),
+        tooltipBackground: Color(0xFF222222),
+        tooltipTextColor: Color(0xFFFFFFFF),
+        statusBarBackground: Color(0xFF111111),
+        statusBarTextColor: Color(0xFFFFFFFF),
+        headerBarBackground: Color(0xFF111111),
+        headerBarTextColor: Color(0xFFFFFFFF),
+        scrollbarThumbColor: Color(0xFF333333),
+        scrollbarTrackColor: Color(0x00000000),
+      );
+      await themeManager.registerCustomTheme('brand-b', custom);
+      expect(themeManager.hasCustomTheme, isFalse);
+      expect(themeManager.allCustomThemes.containsKey('brand-b'), isTrue);
+      expect(themeManager.getCustomTheme('brand-b'), custom);
+    });
+
+    test('switchToCustomTheme activates registered theme', () async {
+      const custom = FlutterLaneThemeData(
+        swimlaneBackground: Color(0xFF000000),
+        swimlaneDivider: Color(0xFF111111),
+        sectionBackground: Color(0xFF000000),
+        sectionHeaderBackground: Color(0xFF111111),
+        sectionHeaderTextColor: Color(0xFFFFFFFF),
+        sectionBorderColor: Color(0xFF222222),
+        tabBarBackground: Color(0xFF111111),
+        tabActiveBackground: Color(0xFF000000),
+        tabActiveTextColor: Color(0xFFFFFFFF),
+        tabInactiveTextColor: Color(0xFF888888),
+        tabHoverBackground: Color(0xFF222222),
+        tabBorderColor: Color(0xFF222222),
+        paneContentBackground: Color(0xFF000000),
+        resizeHandleColor: Color(0xFF333333),
+        resizeHandleHoverColor: Color(0xFF555555),
+        hoverZoneColor: Color(0x20FFFFFF),
+        hoverZoneActiveColor: Color(0x60FFFFFF),
+        dragPlaceholderColor: Color(0x30FFFFFF),
+        dragPreviewColor: Color(0x80555555),
+        tooltipBackground: Color(0xFF222222),
+        tooltipTextColor: Color(0xFFFFFFFF),
+        statusBarBackground: Color(0xFF111111),
+        statusBarTextColor: Color(0xFFFFFFFF),
+        headerBarBackground: Color(0xFF111111),
+        headerBarTextColor: Color(0xFFFFFFFF),
+        scrollbarThumbColor: Color(0xFF333333),
+        scrollbarTrackColor: Color(0x00000000),
+      );
+      await themeManager.registerCustomTheme('brand-b', custom);
+      expect(themeManager.hasCustomTheme, isFalse);
+
+      await themeManager.switchToCustomTheme('brand-b');
+      expect(themeManager.hasCustomTheme, isTrue);
+      expect(themeManager.activeCustomThemeId, 'brand-b');
+      expect(themeManager.currentTheme, custom);
+    });
+
+    test('switchToCustomTheme no-op for unknown id', () async {
+      await themeManager.switchToCustomTheme('nonexistent');
+      expect(themeManager.hasCustomTheme, isFalse);
+      expect(themeManager.currentTheme, FlutterLaneThemeData.light);
     });
 
     test('clearCustomTheme reverts to built-in', () async {
@@ -486,15 +568,17 @@ void main() {
         scrollbarThumbColor: Color(0xFF333333),
         scrollbarTrackColor: Color(0x00000000),
       );
-      await themeManager.setCustomTheme(custom);
+      await themeManager.setCustomTheme('brand-b', custom);
       expect(themeManager.hasCustomTheme, isTrue);
 
       await themeManager.clearCustomTheme();
       expect(themeManager.hasCustomTheme, isFalse);
       expect(themeManager.currentTheme, FlutterLaneThemeData.light);
+      // Theme still in registry
+      expect(themeManager.allCustomThemes.containsKey('brand-b'), isTrue);
     });
 
-    test('setTheme clears custom theme', () async {
+    test('setTheme clears active custom theme', () async {
       const custom = FlutterLaneThemeData(
         swimlaneBackground: Color(0xFF000000),
         swimlaneDivider: Color(0xFF111111),
@@ -524,7 +608,7 @@ void main() {
         scrollbarThumbColor: Color(0xFF333333),
         scrollbarTrackColor: Color(0x00000000),
       );
-      await themeManager.setCustomTheme(custom);
+      await themeManager.setCustomTheme('brand-b', custom);
       expect(themeManager.hasCustomTheme, isTrue);
 
       await themeManager.setTheme(FlutterLaneThemeType.dark);
@@ -533,7 +617,7 @@ void main() {
       expect(themeManager.currentTheme, FlutterLaneThemeData.dark);
     });
 
-    test('cycleTheme clears custom theme and cycles', () async {
+    test('unregisterCustomTheme removes and reverts if active', () async {
       const custom = FlutterLaneThemeData(
         swimlaneBackground: Color(0xFF000000),
         swimlaneDivider: Color(0xFF111111),
@@ -563,10 +647,150 @@ void main() {
         scrollbarThumbColor: Color(0xFF333333),
         scrollbarTrackColor: Color(0x00000000),
       );
-      await themeManager.setCustomTheme(custom);
+      await themeManager.setCustomTheme('brand-b', custom);
+      expect(themeManager.hasCustomTheme, isTrue);
+
+      await themeManager.unregisterCustomTheme('brand-b');
+      expect(themeManager.hasCustomTheme, isFalse);
+      expect(themeManager.allCustomThemes.containsKey('brand-b'), isFalse);
+      expect(themeManager.currentTheme, FlutterLaneThemeData.light);
+    });
+
+    test('multiple custom themes can coexist', () async {
+      const themeA = FlutterLaneThemeData(
+        swimlaneBackground: Color(0xFF111111),
+        swimlaneDivider: Color(0xFF222222),
+        sectionBackground: Color(0xFF111111),
+        sectionHeaderBackground: Color(0xFF222222),
+        sectionHeaderTextColor: Color(0xFFAAAAAA),
+        sectionBorderColor: Color(0xFF333333),
+        tabBarBackground: Color(0xFF222222),
+        tabActiveBackground: Color(0xFF111111),
+        tabActiveTextColor: Color(0xFFFFFFFF),
+        tabInactiveTextColor: Color(0xFF888888),
+        tabHoverBackground: Color(0xFF333333),
+        tabBorderColor: Color(0xFF333333),
+        paneContentBackground: Color(0xFF111111),
+        resizeHandleColor: Color(0xFF444444),
+        resizeHandleHoverColor: Color(0xFF555555),
+        hoverZoneColor: Color(0x20FFFFFF),
+        hoverZoneActiveColor: Color(0x60FFFFFF),
+        dragPlaceholderColor: Color(0x30FFFFFF),
+        dragPreviewColor: Color(0x80555555),
+        tooltipBackground: Color(0xFF333333),
+        tooltipTextColor: Color(0xFFFFFFFF),
+        statusBarBackground: Color(0xFF222222),
+        statusBarTextColor: Color(0xFFFFFFFF),
+        headerBarBackground: Color(0xFF222222),
+        headerBarTextColor: Color(0xFFFFFFFF),
+        scrollbarThumbColor: Color(0xFF444444),
+        scrollbarTrackColor: Color(0x00000000),
+      );
+      const themeB = FlutterLaneThemeData(
+        swimlaneBackground: Color(0xFFAAAAAA),
+        swimlaneDivider: Color(0xFFBBBBBB),
+        sectionBackground: Color(0xFFAAAAAA),
+        sectionHeaderBackground: Color(0xFFBBBBBB),
+        sectionHeaderTextColor: Color(0xFF111111),
+        sectionBorderColor: Color(0xFFCCCCCC),
+        tabBarBackground: Color(0xFFBBBBBB),
+        tabActiveBackground: Color(0xFFAAAAAA),
+        tabActiveTextColor: Color(0xFF000000),
+        tabInactiveTextColor: Color(0xFF555555),
+        tabHoverBackground: Color(0xFFCCCCCC),
+        tabBorderColor: Color(0xFFCCCCCC),
+        paneContentBackground: Color(0xFFAAAAAA),
+        resizeHandleColor: Color(0xFFDDDDDD),
+        resizeHandleHoverColor: Color(0xFFEEEEEE),
+        hoverZoneColor: Color(0x20000000),
+        hoverZoneActiveColor: Color(0x60000000),
+        dragPlaceholderColor: Color(0x30000000),
+        dragPreviewColor: Color(0x80DDDDDD),
+        tooltipBackground: Color(0xFFCCCCCC),
+        tooltipTextColor: Color(0xFF000000),
+        statusBarBackground: Color(0xFFBBBBBB),
+        statusBarTextColor: Color(0xFF000000),
+        headerBarBackground: Color(0xFFBBBBBB),
+        headerBarTextColor: Color(0xFF000000),
+        scrollbarThumbColor: Color(0xFFDDDDDD),
+        scrollbarTrackColor: Color(0x00000000),
+      );
+      await themeManager.registerCustomTheme('dark-neon', themeA);
+      await themeManager.registerCustomTheme('soft-pastel', themeB);
+      expect(themeManager.allCustomThemes.length, 2);
+
+      await themeManager.switchToCustomTheme('dark-neon');
+      expect(themeManager.currentTheme, themeA);
+
+      await themeManager.switchToCustomTheme('soft-pastel');
+      expect(themeManager.currentTheme, themeB);
+
+      await themeManager.clearCustomTheme();
+      expect(themeManager.currentTheme, FlutterLaneThemeData.light);
+      expect(themeManager.allCustomThemes.length, 2);
+    });
+
+    test('cycleTheme cycles through built-in + custom themes', () async {
+      const custom = FlutterLaneThemeData(
+        swimlaneBackground: Color(0xFF000000),
+        swimlaneDivider: Color(0xFF111111),
+        sectionBackground: Color(0xFF000000),
+        sectionHeaderBackground: Color(0xFF111111),
+        sectionHeaderTextColor: Color(0xFFFFFFFF),
+        sectionBorderColor: Color(0xFF222222),
+        tabBarBackground: Color(0xFF111111),
+        tabActiveBackground: Color(0xFF000000),
+        tabActiveTextColor: Color(0xFFFFFFFF),
+        tabInactiveTextColor: Color(0xFF888888),
+        tabHoverBackground: Color(0xFF222222),
+        tabBorderColor: Color(0xFF222222),
+        paneContentBackground: Color(0xFF000000),
+        resizeHandleColor: Color(0xFF333333),
+        resizeHandleHoverColor: Color(0xFF555555),
+        hoverZoneColor: Color(0x20FFFFFF),
+        hoverZoneActiveColor: Color(0x60FFFFFF),
+        dragPlaceholderColor: Color(0x30FFFFFF),
+        dragPreviewColor: Color(0x80555555),
+        tooltipBackground: Color(0xFF222222),
+        tooltipTextColor: Color(0xFFFFFFFF),
+        statusBarBackground: Color(0xFF111111),
+        statusBarTextColor: Color(0xFFFFFFFF),
+        headerBarBackground: Color(0xFF111111),
+        headerBarTextColor: Color(0xFFFFFFFF),
+        scrollbarThumbColor: Color(0xFF333333),
+        scrollbarTrackColor: Color(0x00000000),
+      );
+      await themeManager.registerCustomTheme('my-custom', custom);
+
+      // light → dark
+      await themeManager.cycleTheme();
+      expect(themeManager.currentType, FlutterLaneThemeType.dark);
+
+      // dark → pure
+      await themeManager.cycleTheme();
+      expect(themeManager.currentType, FlutterLaneThemeType.pure);
+
+      // pure → my-custom
+      await themeManager.cycleTheme();
+      expect(themeManager.hasCustomTheme, isTrue);
+      expect(themeManager.activeCustomThemeId, 'my-custom');
+      expect(themeManager.currentTheme, custom);
+
+      // my-custom → light
       await themeManager.cycleTheme();
       expect(themeManager.hasCustomTheme, isFalse);
+      expect(themeManager.currentType, FlutterLaneThemeType.light);
+    });
+
+    test('cycleTheme skips custom themes when registry empty', () async {
+      await themeManager.cycleTheme();
       expect(themeManager.currentType, FlutterLaneThemeType.dark);
+
+      await themeManager.cycleTheme();
+      expect(themeManager.currentType, FlutterLaneThemeType.pure);
+
+      await themeManager.cycleTheme();
+      expect(themeManager.currentType, FlutterLaneThemeType.light);
     });
   });
 

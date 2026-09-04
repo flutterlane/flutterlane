@@ -10,70 +10,165 @@ import '../storage/storage_path.dart';
 /// Theme state is scoped to a specific workspace. Each workspace has its own
 /// theme settings file under `.flutterlane/workspaces/{workspaceId}/`.
 ///
-/// Supports both built-in themes (light, dark, pure) and fully custom themes
-/// via [setCustomTheme].
+/// Supports both built-in themes (light, dark, pure) and a registry of named
+/// custom themes via [registerCustomTheme] / [switchToCustomTheme].
 class ThemeManager extends ChangeNotifier {
   final String workspaceId;
 
   FlutterLaneThemeType _currentType = FlutterLaneThemeType.light;
-  FlutterLaneThemeData? _customThemeData;
+
+  /// Registry of named custom themes: id → theme data.
+  final Map<String, FlutterLaneThemeData> _customThemes = {};
+
+  /// The ID of the currently active custom theme, or null if using built-in.
+  String? _activeCustomThemeId;
+
   bool _followSystem = true;
 
   ThemeManager({required this.workspaceId});
 
   FlutterLaneThemeType get currentType => _currentType;
 
-  /// Returns the active theme data. Prefers [_customThemeData] if set,
+  /// Returns the active theme data. Prefers the active custom theme if set,
   /// otherwise falls back to the built-in theme for [_currentType].
-  FlutterLaneThemeData get currentTheme =>
-      _customThemeData ?? FlutterLaneThemeData.fromType(_currentType);
+  FlutterLaneThemeData get currentTheme {
+    if (_activeCustomThemeId != null &&
+        _customThemes.containsKey(_activeCustomThemeId)) {
+      return _customThemes[_activeCustomThemeId]!;
+    }
+    return FlutterLaneThemeData.fromType(_currentType);
+  }
 
   bool get followSystem => _followSystem;
-  bool get hasCustomTheme => _customThemeData != null;
+
+  /// Whether any custom theme is currently active.
+  bool get hasCustomTheme => _activeCustomThemeId != null;
+
+  /// The ID of the currently active custom theme, or null.
+  String? get activeCustomThemeId => _activeCustomThemeId;
+
+  /// All registered custom themes (unmodifiable view).
+  Map<String, FlutterLaneThemeData> get allCustomThemes =>
+      Map.unmodifiable(_customThemes);
 
   /// Initializes the manager by loading persisted settings.
   Future<void> init() async {
     await _loadSettings();
   }
 
+  // ── Built-in theme switching ──
+
   /// Switches to the given built-in theme type and persists.
-  /// Clears any custom theme override.
+  /// Clears any active custom theme.
   Future<void> setTheme(FlutterLaneThemeType type) async {
-    _customThemeData = null;
+    _activeCustomThemeId = null;
     if (_currentType == type) return;
     _currentType = type;
     notifyListeners();
     await _saveSettings();
   }
 
-  /// Applies a fully custom theme. Overrides the built-in theme until
-  /// [clearCustomTheme] is called or [setTheme] is invoked.
-  Future<void> setCustomTheme(FlutterLaneThemeData theme) async {
-    _customThemeData = theme;
+  // ── Custom theme registry ──
+
+  /// Registers a named custom theme. If [id] already exists, it is overwritten.
+  Future<void> registerCustomTheme(
+      String id, FlutterLaneThemeData theme) async {
+    _customThemes[id] = theme;
     notifyListeners();
     await _saveSettings();
   }
 
-  /// Clears the custom theme override, reverting to the built-in theme
-  /// for the current [_currentType].
+  /// Removes a registered custom theme.
+  /// If it was the active theme, reverts to the built-in theme.
+  Future<void> unregisterCustomTheme(String id) async {
+    if (!_customThemes.containsKey(id)) return;
+    _customThemes.remove(id);
+    if (_activeCustomThemeId == id) {
+      _activeCustomThemeId = null;
+    }
+    notifyListeners();
+    await _saveSettings();
+  }
+
+  /// Activates a previously registered custom theme by ID.
+  /// The ID must exist in the registry; otherwise this is a no-op.
+  Future<void> switchToCustomTheme(String id) async {
+    if (!_customThemes.containsKey(id)) return;
+    if (_activeCustomThemeId == id) return;
+    _activeCustomThemeId = id;
+    notifyListeners();
+    await _saveSettings();
+  }
+
+  /// Returns a registered custom theme by ID, or null.
+  FlutterLaneThemeData? getCustomTheme(String id) => _customThemes[id];
+
+  /// Registers and immediately activates a custom theme (convenience shorthand).
+  ///
+  /// ```dart
+  /// await themeManager.setCustomTheme('my-brand', const FlutterLaneThemeData(...));
+  /// ```
+  Future<void> setCustomTheme(String id, FlutterLaneThemeData theme) async {
+    _customThemes[id] = theme;
+    _activeCustomThemeId = id;
+    notifyListeners();
+    await _saveSettings();
+  }
+
+  /// Clears the active custom theme, reverting to the built-in theme
+  /// for the current [_currentType]. Does not remove the theme from the registry.
   Future<void> clearCustomTheme() async {
-    if (_customThemeData == null) return;
-    _customThemeData = null;
+    if (_activeCustomThemeId == null) return;
+    _activeCustomThemeId = null;
     notifyListeners();
     await _saveSettings();
   }
 
-  /// Cycles through light → dark → pure → light …
+  /// Cycles through all available themes: light → dark → pure → custom₁ → custom₂ → … → light.
+  ///
   /// If a custom theme is active, clears it first and starts cycling from
   /// the current built-in type.
   Future<void> cycleTheme() async {
-    if (_customThemeData != null) {
-      _customThemeData = null;
+    final builtInCount = FlutterLaneThemeType.values.length;
+    final customCount = _customThemes.length;
+    final total = builtInCount + customCount;
+
+    if (total == 0) return;
+
+    // Determine the effective position before cycling.
+    int currentPos;
+    if (_activeCustomThemeId != null) {
+      // Currently on a custom theme — find its position.
+      final customIds = _customThemes.keys.toList();
+      final customIdx = customIds.indexOf(_activeCustomThemeId!);
+      _activeCustomThemeId = null;
+      currentPos = builtInCount + (customIdx >= 0 ? customIdx : 0);
+    } else {
+      currentPos = _currentType.index;
     }
-    final next = FlutterLaneThemeType.values[
-        (_currentType.index + 1) % FlutterLaneThemeType.values.length];
-    await setTheme(next);
+
+    final nextPos = (currentPos + 1) % total;
+
+    if (nextPos < builtInCount) {
+      // Next is a built-in theme.
+      final next = FlutterLaneThemeType.values[nextPos];
+      if (_currentType == next && _activeCustomThemeId == null) return;
+      _currentType = next;
+      notifyListeners();
+      await _saveSettings();
+    } else {
+      // Next is a custom theme.
+      final customIds = _customThemes.keys.toList();
+      final customIndex = nextPos - builtInCount;
+      if (customIndex < customIds.length) {
+        _activeCustomThemeId = customIds[customIndex];
+        notifyListeners();
+        await _saveSettings();
+      }
+    }
   }
+
+  // ── System adaptive ──
 
   /// Toggles system-adaptive mode on/off.
   Future<void> setFollowSystem(bool value) async {
@@ -113,10 +208,24 @@ class ThemeManager extends ChangeNotifier {
         );
         _followSystem = json['followSystem'] as bool? ?? true;
 
-        // Restore custom theme if persisted.
-        if (json['customTheme'] != null) {
-          _customThemeData =
-              _themeDataFromJson(json['customTheme'] as Map<String, dynamic>);
+        // Restore active custom theme ID.
+        _activeCustomThemeId = json['activeCustomThemeId'] as String?;
+
+        // Restore custom themes registry.
+        final customThemesJson = json['customThemes'];
+        if (customThemesJson is Map<String, dynamic>) {
+          _customThemes.clear();
+          for (final entry in customThemesJson.entries) {
+            _customThemes[entry.key] = _themeDataFromJson(
+              entry.value as Map<String, dynamic>,
+            );
+          }
+        }
+
+        // Validate that the active ID still exists.
+        if (_activeCustomThemeId != null &&
+            !_customThemes.containsKey(_activeCustomThemeId)) {
+          _activeCustomThemeId = null;
         }
 
         notifyListeners();
@@ -133,10 +242,12 @@ class ThemeManager extends ChangeNotifier {
       final data = <String, dynamic>{
         'themeType': _currentType.name,
         'followSystem': _followSystem,
+        'activeCustomThemeId': _activeCustomThemeId,
+        'customThemes': <String, dynamic>{
+          for (final entry in _customThemes.entries)
+            entry.key: _themeDataToJson(entry.value),
+        },
       };
-      if (_customThemeData != null) {
-        data['customTheme'] = _themeDataToJson(_customThemeData!);
-      }
       await file.writeAsString(jsonEncode(data));
     } catch (_) {
       // Best-effort persistence; silently ignore on web/desktop sandbox.
