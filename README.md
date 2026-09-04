@@ -22,6 +22,25 @@ FlutterLane 是一款 **Flutter 桌面端专属**的分层 IDE 级布局引擎�
 - **注册式视图体系**：业务注册视图，引擎接管一切布局交互
 - **零外部后端依赖**：能力完全内聚，纯端内闭环
 
+## Markdown 渲染引擎
+
+内建教育级 Markdown 渲染器，支持：
+
+- **LaTeX 数学公式**：行内 `$E=mc^2$` + 块级 `$$\int_0^1 x^2 dx$$`（flutter_math_fork / KaTeX）
+- **代码高亮**：192 种语言，flutter_highlight 驱动
+- **GFM 表格**：完整支持对齐
+- **Callouts**：`> [!NOTE]`、`> [!WARNING]` 等 GitHub 风格提示框
+- **Mermaid 图表**：占位符，可升级为 flutter_mermaid 或 merman
+- **Frontmatter**：YAML 元数据解析
+- **基础元素**：标题、段落、加粗/斜体/删除线、行内代码、列表、链接、图片、引用、分割线
+
+```dart
+MarkdownRenderer(
+  data: '# Hello\n\nThis is **Markdown** rendered as Flutter widgets.',
+  theme: MarkdownThemeData.dark(),
+)
+```
+
 ## 安装
 
 在 `pubspec.yaml` 中添加依赖：
