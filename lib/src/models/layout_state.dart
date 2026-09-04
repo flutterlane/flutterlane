@@ -86,19 +86,32 @@ class LayoutState {
   }
 
   /// Adds a swimlane at the given index, or at the end if index is null.
+  /// Redistributes flex values so all swimlanes share space equally.
   void addSwimlane(Swimlane swimlane, {int? index}) {
     if (index != null && index >= 0 && index <= swimlanes.length) {
       swimlanes.insert(index, swimlane);
     } else {
       swimlanes.add(swimlane);
     }
+    _redistributeFlex();
   }
 
   /// Removes a swimlane by ID.
   Swimlane? removeSwimlane(String swimlaneId) {
     final index = swimlanes.indexWhere((s) => s.id == swimlaneId);
     if (index == -1) return null;
-    return swimlanes.removeAt(index);
+    final removed = swimlanes.removeAt(index);
+    if (swimlanes.isNotEmpty) _redistributeFlex();
+    return removed;
+  }
+
+  /// Sets all swimlanes to equal flex so they share space evenly.
+  void _redistributeFlex() {
+    if (swimlanes.isEmpty) return;
+    final equalFlex = 1.0;
+    for (final lane in swimlanes) {
+      lane.flex = equalFlex;
+    }
   }
 
   /// Normalizes swimlane flex values so that each swimlane gets at least
@@ -109,10 +122,9 @@ class LayoutState {
   /// 1. For each swimlane, calculate the flex value needed to achieve minWidth
   /// 2. If a swimlane's flex is below the minimum, boost it
   /// 3. Scale all other flex values proportionally to maintain relative sizing
-  void normalizeFlexValues({double availableWidth = 800}) {
+  void normalizeFlexValues() {
     if (swimlanes.isEmpty) return;
 
-    const minWidth = 120.0;
     const minFlex = 1.0;
 
     // Find swimlanes with flex below minimum

@@ -65,24 +65,25 @@ class SectionTabBar extends StatelessWidget {
         color: theme.tabBarBackground,
         border: Border(bottom: BorderSide(color: theme.tabBorderColor, width: .5)),
       ),
-      child: Row(
-        children: [
-          if (canToggle)
-            InkWell(
-              onTap: onToggleSectionExpand,
-              child: SizedBox(
-                width: 30,
-                height: 32,
-                child: Icon(
-                  isExpanded ? Icons.expand_more : Icons.chevron_right,
-                  size: 16,
-                  color: theme.sectionHeaderTextColor,
-                ),
+      child: ClipRect(
+        child: Row(
+          children: [
+            if (canToggle)
+              InkWell(
+                onTap: onToggleSectionExpand,
+                child: SizedBox(
+                  width: 30,
+                  height: 32,
+                  child: Icon(
+                    isExpanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 16,
+                    color: theme.sectionHeaderTextColor,
+                  ),
+              ),
             ),
-          ),
-          if (sectionTitle.isNotEmpty)
-            Flexible(
-              child: Draggable<DragSource>(
+            if (sectionTitle.isNotEmpty)
+              Flexible(
+                child: Draggable<DragSource>(
                 key: ValueKey('section-drag-$sectionId'),
                 data: DragSource.section(
                   fromSwimlaneId: swimlaneId,
@@ -165,6 +166,7 @@ class SectionTabBar extends StatelessWidget {
             ),
           const SizedBox(width: 4),
         ],
+      ),
       ),
       ),
     );

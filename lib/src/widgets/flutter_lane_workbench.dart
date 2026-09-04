@@ -102,7 +102,7 @@ class _WorkbenchBody extends StatelessWidget {
               onDrag: (delta) =>
                   manager.resizeSwimlane(swimlanes[index - 1].id, delta),
             ),
-          _buildSwimlaneSlot(swimlanes[index], index),
+          _buildSwimlaneSlot(swimlanes[index], index, scrollable: scrollable),
         ],
       ],
     );
@@ -180,7 +180,7 @@ class _WorkbenchBody extends StatelessWidget {
     );
   }
 
-  Widget _buildSwimlaneSlot(Swimlane lane, int index) {
+  Widget _buildSwimlaneSlot(Swimlane lane, int index, {required bool scrollable}) {
     final closeLane = lane.canClose && !_isActivityBar(lane)
         ? () => manager.removeSwimlane(lane.id)
         : null;
@@ -216,6 +216,11 @@ class _WorkbenchBody extends StatelessWidget {
     if (lane.fixedWidth != null) {
       return SizedBox(width: lane.fixedWidth!, child: content);
     }
+    if (scrollable) {
+      // When scrolling, each swimlane gets its minWidth.
+      return SizedBox(width: lane.minWidth, child: content);
+    }
+    // When fitting, distribute via flex.
     return Flexible(
       fit: FlexFit.loose,
       flex: ((lane.flex) * 1000).round(),
