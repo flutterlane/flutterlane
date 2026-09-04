@@ -818,13 +818,14 @@ class _ChromeHeader extends StatelessWidget {
           const SizedBox(width: 16),
           Icon(Icons.menu, size: 14, color: theme.headerBarTextColor),
           const SizedBox(width: 12),
-          SizedBox(
-            width: 380,
-            height: 38,
-            child: WindowTabBar(
-              controller: windowTabs,
-              newTabLabel: 'New Window',
-              style: TabBarStyle.fromFlutterLaneTheme(theme),
+          Flexible(
+            child: SizedBox(
+              height: 38,
+              child: WindowTabBar(
+                controller: windowTabs,
+                newTabLabel: 'New Window',
+                style: TabBarStyle.fromFlutterLaneTheme(theme),
+              ),
             ),
           ),
           const Spacer(),
@@ -916,6 +917,7 @@ class _ActivityBar extends StatelessWidget {
               selected: isSelected,
               theme: theme,
               onTap: () => onActivityTap(item.$1),
+              tooltip: item.$1,
             );
           }),
           const Spacer(),
@@ -946,18 +948,20 @@ class _ActivityIcon extends StatelessWidget {
   final bool selected;
   final FlutterLaneThemeData theme;
   final VoidCallback onTap;
+  final String tooltip;
 
   const _ActivityIcon({
     required this.icon,
     required this.selected,
     required this.theme,
     required this.onTap,
+    this.tooltip = '',
   });
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Open view',
+      message: tooltip,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
