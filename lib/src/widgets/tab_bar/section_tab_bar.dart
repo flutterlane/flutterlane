@@ -81,29 +81,37 @@ class SectionTabBar extends StatelessWidget {
             ),
           ),
           if (sectionTitle.isNotEmpty)
-            Draggable<DragSource>(
-              key: ValueKey('section-drag-$sectionId'),
-              data: DragSource.section(
-                fromSwimlaneId: swimlaneId,
-                sectionId: sectionId,
-              ),
-              onDragStarted: onSectionDragStarted,
-              feedback: Material(
-                color: Colors.transparent,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Text(sectionTitle, style: TextStyle(fontSize: 10, color: theme.sectionHeaderTextColor)),
+            Flexible(
+              child: Draggable<DragSource>(
+                key: ValueKey('section-drag-$sectionId'),
+                data: DragSource.section(
+                  fromSwimlaneId: swimlaneId,
+                  sectionId: sectionId,
                 ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(sectionIcon ?? Icons.drag_indicator, size: 12, color: theme.sectionHeaderTextColor),
-                    const SizedBox(width: 2),
-                    Text(sectionTitle, style: TextStyle(fontSize: 10, color: theme.sectionHeaderTextColor)),
-                  ],
+                onDragStarted: onSectionDragStarted,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text(sectionTitle, style: TextStyle(fontSize: 10, color: theme.sectionHeaderTextColor)),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(sectionIcon ?? Icons.drag_indicator, size: 12, color: theme.sectionHeaderTextColor),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          sectionTitle,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 10, color: theme.sectionHeaderTextColor),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
