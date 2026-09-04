@@ -28,6 +28,13 @@ class ThemeManager extends ChangeNotifier {
     await _saveSettings();
   }
 
+  /// Cycles through light → dark → pure → light …
+  Future<void> cycleTheme() async {
+    final next = FlutterLaneThemeType.values[
+        (_currentType.index + 1) % FlutterLaneThemeType.values.length];
+    await setTheme(next);
+  }
+
   /// Toggles system-adaptive mode on/off.
   Future<void> setFollowSystem(bool value) async {
     if (_followSystem == value) return;

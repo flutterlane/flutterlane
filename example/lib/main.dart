@@ -545,8 +545,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       listenable: _manager,
       builder: (context, _) {
         final theme = _manager.currentTheme;
-        final isDark =
-            _manager.themeManager.currentType == FlutterLaneThemeType.dark;
+        final currentThemeType = _manager.themeManager.currentType;
 
         return MaterialApp(
           title: 'FlutterLane IDE Demo',
@@ -563,7 +562,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
                 _ChromeHeader(
                   manager: _manager,
                   windowTabs: _windowTabs,
-                  isDark: isDark,
+                  currentThemeType: currentThemeType,
                   onResetLayout: _handleResetLayout,
                   onSelectLayout: _handleSelectLayout,
                 ),
@@ -639,7 +638,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 class _ChromeHeader extends StatelessWidget {
   final FlutterLaneManager manager;
   final TabBarController windowTabs;
-  final bool isDark;
+  final FlutterLaneThemeType currentThemeType;
   final VoidCallback onResetLayout;
   final ValueChanged<String> onSelectLayout;
 
@@ -648,7 +647,7 @@ class _ChromeHeader extends StatelessWidget {
     required this.windowTabs,
     required this.onResetLayout,
     required this.onSelectLayout,
-    this.isDark = false,
+    required this.currentThemeType,
   });
 
   @override
@@ -692,14 +691,16 @@ class _ChromeHeader extends StatelessWidget {
           ),
           IconButton(
             icon: Icon(
-              isDark ? Icons.light_mode : Icons.dark_mode,
+              currentThemeType == FlutterLaneThemeType.dark
+                  ? Icons.light_mode
+                  : currentThemeType == FlutterLaneThemeType.light
+                      ? Icons.dark_mode
+                      : Icons.contrast,
               size: 15,
               color: theme.headerBarTextColor,
             ),
-            tooltip: 'Toggle theme',
-            onPressed: () => manager.themeManager.setTheme(
-              isDark ? FlutterLaneThemeType.light : FlutterLaneThemeType.dark,
-            ),
+            tooltip: 'Cycle theme',
+            onPressed: () => manager.themeManager.cycleTheme(),
           ),
           IconButton(
             key: const ValueKey('reset-default-layout'),
