@@ -50,25 +50,22 @@ class _WorkbenchBody extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
 
+          // Calculate total minWidth needed for all swimlanes.
+          final totalMinWidth = swimlanes.fold<double>(
+            0,
+            (sum, lane) => sum + lane.minWidth,
+          );
+          final needsScroll = totalMinWidth > constraints.maxWidth;
 
           return Stack(
             children: [
-              Row(
-                children: [
-                  for (var index = 0; index < swimlanes.length; index++) ...[
-                    if (index > 0)
-                      ResizeHandle(
-                        key: ValueKey('swimlane-resize-${swimlanes[index - 1].id}'),
-                        isHorizontal: true,
-                        disabled: swimlanes[index - 1].fixedWidth != null ||
-                            swimlanes[index].fixedWidth != null,
-                        onDrag: (delta) =>
-                            manager.resizeSwimlane(swimlanes[index - 1].id, delta),
-                      ),
-                    _buildSwimlaneSlot(swimlanes[index], index),
-                  ],
-                ],
-              ),
+              if (needsScroll)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _buildSwimlaneRow(swimlanes, constraints, scrollable: true),
+                )
+              else
+                _buildSwimlaneRow(swimlanes, constraints, scrollable: false),
               Positioned(
                 right: 0,
                 bottom: 0,
@@ -85,6 +82,31 @@ class _WorkbenchBody extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Widget _buildSwimlaneRow(
+    List<Swimlane> swimlanes,
+    BoxConstraints constraints, {
+    required bool scrollable,
+  }) {
+    final row = Row(
+      mainAxisSize: scrollable ? MainAxisSize.min : MainAxisSize.max,
+      children: [
+        for (var index = 0; index < swimlanes.length; index++) ...[
+          if (index > 0)
+            ResizeHandle(
+              key: ValueKey('swimlane-resize-${swimlanes[index - 1].id}'),
+              isHorizontal: true,
+              disabled: swimlanes[index - 1].fixedWidth != null ||
+                  swimlanes[index].fixedWidth != null,
+              onDrag: (delta) =>
+                  manager.resizeSwimlane(swimlanes[index - 1].id, delta),
+            ),
+          _buildSwimlaneSlot(swimlanes[index], index),
+        ],
+      ],
+    );
+    return row;
   }
 
   Widget _buildSwimlane(Swimlane swimlane, {VoidCallback? onCloseSwimlane}) {
@@ -194,7 +216,8 @@ class _WorkbenchBody extends StatelessWidget {
     if (lane.fixedWidth != null) {
       return SizedBox(width: lane.fixedWidth!, child: content);
     }
-    return Expanded(
+    return Flexible(
+      fit: FlexFit.loose,
       flex: ((lane.flex) * 1000).round(),
       child: ConstrainedBox(
         constraints: BoxConstraints(minWidth: lane.minWidth),
