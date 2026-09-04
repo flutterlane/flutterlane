@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../core/flutter_lane_manager.dart';
@@ -51,77 +49,38 @@ class _WorkbenchBody extends StatelessWidget {
       color: theme.swimlaneBackground,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          const splitterWidth = 4.0;
-          const addZoneWidth = 32.0;
-          final totalFlex =
-              swimlanes.fold<double>(0, (sum, lane) => sum + lane.flex);
-          final minimumWidth = swimlanes.fold<double>(
-            0,
-            (sum, lane) => sum + lane.minWidth,
-          );
-          final splitWidth = math.max(0, swimlanes.length - 1) * splitterWidth;
-          final laneAreaWidth = math.max(
-            constraints.maxWidth - addZoneWidth - splitWidth,
-            minimumWidth,
-          );
 
-          return ListView(
-            scrollDirection: Axis.horizontal,
+
+          return Stack(
             children: [
-              for (var index = 0; index < swimlanes.length; index++) ...[
-                DragTarget<DragSource>(
-                  onWillAcceptWithDetails: (details) =>
-                      details.data.isSwimlaneDrag &&
-                      details.data.swimlaneId != swimlanes[index].id,
-                  onAcceptWithDetails: (details) =>
-                      manager.moveSwimlane(details.data.swimlaneId, index),
-                  builder: (context, candidateData, rejectedData) {
-                    final lane = swimlanes[index];
-                    final width = lane.fixedWidth ??
-                        math.max(
-                          lane.minWidth,
-                          laneAreaWidth *
-                              lane.flex /
-                              (totalFlex == 0 ? 1 : totalFlex),
-                        );
-                          final closeLane = lane.canClose && !_isActivityBar(lane)
-                            ? () => manager.removeSwimlane(lane.id)
-                            : null;
-                    return Draggable<DragSource>(
-                      data: DragSource.swimlane(fromSwimlaneId: lane.id),
-                      feedback: Material(
-                        color: Colors.transparent,
-                        child: SizedBox(
-                          width: width,
-                          height: 80,
-                          child: _buildSwimlane(lane, onCloseSwimlane: closeLane),
-                        ),
+              Row(
+                children: [
+                  for (var index = 0; index < swimlanes.length; index++) ...[
+                    if (index > 0)
+                      ResizeHandle(
+                        key: ValueKey('swimlane-resize-${swimlanes[index - 1].id}'),
+                        isHorizontal: true,
+                        disabled: swimlanes[index - 1].fixedWidth != null ||
+                            swimlanes[index].fixedWidth != null,
+                        onDrag: (delta) =>
+                            manager.resizeSwimlane(swimlanes[index - 1].id, delta),
                       ),
-                      childWhenDragging: Opacity(
-                        opacity: .35,
-                        child: SizedBox(
-                          width: width,
-                          child: _buildSwimlane(lane, onCloseSwimlane: closeLane)),
-                      ),
-                        child: SizedBox(
-                          width: width,
-                          child: _buildSwimlane(lane, onCloseSwimlane: closeLane)),
-                    );
-                  },
-                ),
-                if (index < swimlanes.length - 1)
-                  ResizeHandle(
-                    key: ValueKey('swimlane-resize-${swimlanes[index].id}'),
-                    isHorizontal: true,
-                    disabled: swimlanes[index].fixedWidth != null ||
-                        swimlanes[index + 1].fixedWidth != null,
-                    onDrag: (delta) =>
-                        manager.resizeSwimlane(swimlanes[index].id, delta),
+                    _buildSwimlaneSlot(swimlanes[index], index),
+                  ],
+                ],
+              ),
+              Positioned(
+                right: 0,
+                // Start below the 32px section header so the right-edge hot
+                // zone does not swallow taps on the last swimlane's header
+                // controls (add-pane button, close button).
+                top: 32,
+                bottom: 0,
+                width: 36,
+                child: AddSwimlaneHotZone(
+                  onAdd: () => manager.addSwimlane(
+                    Swimlane(sections: [Section(title: 'New Section')]),
                   ),
-              ],
-              AddSwimlaneHotZone(
-                onAdd: () => manager.addSwimlane(
-                  Swimlane(sections: [Section(title: 'New Section')]),
                 ),
               ),
             ],
@@ -147,10 +106,8 @@ class _WorkbenchBody extends StatelessWidget {
               views.first.viewTypeId);
         }
       },
-      onAddViewSelect: (viewTypeId) {
-        if (swimlane.sections.isNotEmpty) {
-          _addPane(swimlane, swimlane.sections.first.sectionId, viewTypeId);
-        }
+      onAddViewSelect: (sectionId, viewTypeId) {
+        _addPane(swimlane, sectionId, viewTypeId);
       },
       onToggleSection: (sectionId) =>
           manager.toggleSectionExpanded(swimlane.id, sectionId),
@@ -201,6 +158,48 @@ class _WorkbenchBody extends StatelessWidget {
         paneId: generateId(),
         viewInstance: ViewInstance(viewTypeId: viewTypeId),
       ),
+    );
+  }
+
+  Widget _buildSwimlaneSlot(Swimlane lane, int index) {
+    final closeLane = lane.canClose && !_isActivityBar(lane)
+        ? () => manager.removeSwimlane(lane.id)
+        : null;
+    final content = DragTarget<DragSource>(
+      onWillAcceptWithDetails: (details) =>
+          details.data.isSwimlaneDrag &&
+          details.data.swimlaneId != lane.id,
+      onAcceptWithDetails: (details) =>
+          manager.moveSwimlane(details.data.swimlaneId, index),
+      builder: (context, candidateData, rejectedData) {
+        return LongPressDraggable<DragSource>(
+          data: DragSource.swimlane(fromSwimlaneId: lane.id),
+          feedback: FlutterLaneTheme(
+            data: manager.currentTheme,
+            child: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                width: 200,
+                height: 80,
+                child: _buildSwimlane(lane, onCloseSwimlane: closeLane),
+              ),
+            ),
+          ),
+          childWhenDragging: Opacity(
+            opacity: .35,
+            child: _buildSwimlane(lane, onCloseSwimlane: closeLane),
+          ),
+          child: _buildSwimlane(lane, onCloseSwimlane: closeLane),
+        );
+      },
+    );
+
+    if (lane.fixedWidth != null) {
+      return SizedBox(width: lane.fixedWidth!, child: content);
+    }
+    return Expanded(
+      flex: ((lane.flex) * 1000).round(),
+      child: content,
     );
   }
 

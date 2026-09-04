@@ -102,6 +102,22 @@ class FlutterLaneManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Returns the layout snapshot bound to [businessContext], if any.
+  LayoutState? layoutForContext(String businessContext) {
+    for (final l in _layouts) {
+      if (l.businessContext == businessContext) return l;
+    }
+    return null;
+  }
+
+  /// Adds a fully-formed snapshot (e.g. a workspace layout) to the store
+  /// and persists it. Does not change the active layout.
+  Future<void> addLayoutSnapshot(LayoutState layout) async {
+    if (_layouts.any((l) => l.snapshotId == layout.snapshotId)) return;
+    _layouts.add(layout);
+    await _persist();
+  }
+
   /// Adds a new swimlane to the active layout.
   void addSwimlane(Swimlane swimlane, {int? index}) {
     _activeLayout?.addSwimlane(swimlane, index: index);
@@ -310,6 +326,9 @@ class FlutterLaneManager extends ChangeNotifier {
   }
 
   /// Switches to a different layout snapshot by ID.
+  ///
+  /// The active layout updates synchronously (listeners fire immediately);
+  /// persistence is queued in the background so tab switches stay snappy.
   Future<void> switchLayout(String snapshotId) async {
     _activeLayout?.isCurrentActive = false;
     _activeLayout = _layouts.firstWhere(
@@ -317,7 +336,8 @@ class FlutterLaneManager extends ChangeNotifier {
       orElse: () => _layouts.first,
     );
     _activeLayout!.isCurrentActive = true;
-    await _persist();
+    notifyListeners();
+    _persist();
   }
 
   /// Deletes a layout snapshot. System defaults and the active layout cannot be deleted.

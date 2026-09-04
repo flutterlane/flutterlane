@@ -227,6 +227,7 @@ void main() {
     test('clone produces independent deep copy', () {
       final original = LayoutState(
         layoutName: 'Test',
+        businessContext: 'ws-flutterlane',
         swimlanes: [
           Swimlane(sections: [Section(title: 'X')]),
         ],
@@ -234,6 +235,7 @@ void main() {
       final cloned = original.clone();
       cloned.swimlanes.first.sections.first.title = 'Y';
       expect(original.swimlanes.first.sections.first.title, 'X');
+      expect(cloned.businessContext, 'ws-flutterlane');
     });
 
     test('addSwimlane and removeSwimlane', () {
@@ -249,6 +251,7 @@ void main() {
     test('toJson/fromJson roundtrip', () {
       final original = LayoutState(
         layoutName: 'Custom',
+        businessContext: 'ws-design',
         swimlanes: [
           Swimlane(
             id: 'sw-1',
@@ -270,6 +273,7 @@ void main() {
       final json = original.toJson();
       final restored = LayoutState.fromJson(json);
       expect(restored.layoutName, 'Custom');
+      expect(restored.businessContext, 'ws-design');
       expect(restored.swimlanes.length, 1);
       expect(restored.swimlanes.first.sections.first.title, 'Explorer');
       expect(

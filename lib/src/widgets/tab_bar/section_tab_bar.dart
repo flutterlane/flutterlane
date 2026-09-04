@@ -25,7 +25,7 @@ class SectionTabBar extends StatelessWidget {
   final ValueChanged<String>? onSelectPane;
   final ValueChanged<String>? onClosePane;
   final void Function(DragSource source, int dropIndex)? onPaneDroppedAt;
-  final ValueChanged<String>? onAddViewSelect;
+  final void Function(String sectionId, String viewTypeId)? onAddViewSelect;
   final VoidCallback? onAddPane;
   final ValueChanged<DragSource>? onSectionDrop;
   final VoidCallback? onSectionDragStarted;
@@ -136,7 +136,7 @@ class SectionTabBar extends StatelessWidget {
               tooltip: 'Add view',
               icon: Icon(Icons.add, size: 15, color: theme.tabInactiveTextColor),
               padding: EdgeInsets.zero,
-              onSelected: onAddViewSelect,
+              onSelected: (viewTypeId) => onAddViewSelect?.call(sectionId, viewTypeId),
               itemBuilder: (context) => registry.allPaneViews
                   .map((view) => PopupMenuItem<String>(
                         value: view.viewTypeId,

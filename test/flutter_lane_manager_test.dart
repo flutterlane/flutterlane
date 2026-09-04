@@ -295,6 +295,75 @@ void main() {
     });
   });
 
+  group('FlutterLaneManager context-bound snapshots', () {
+    late FlutterLaneManager manager;
+
+    setUp(() {
+      manager = FlutterLaneManager();
+      manager.loadLayout(_makeLayout());
+    });
+
+    test('layoutForContext returns the matching snapshot', () {
+      final wsLayout = LayoutState(
+        layoutName: 'FlutterLane',
+        businessContext: 'ws-flutterlane',
+        swimlanes: [],
+      );
+      manager.loadLayout(wsLayout);
+
+      expect(
+        manager.layoutForContext('ws-flutterlane')?.snapshotId,
+        wsLayout.snapshotId,
+      );
+      expect(manager.layoutForContext('ws-other'), isNull);
+    });
+
+    test('addLayoutSnapshot persists into the layouts store', () async {
+      final wsLayout = LayoutState(
+        layoutName: 'Design Docs',
+        businessContext: 'ws-designdocs',
+        swimlanes: [],
+      );
+      await manager.addLayoutSnapshot(wsLayout);
+
+      expect(manager.layouts, contains(wsLayout));
+      expect(manager.layoutForContext('ws-designdocs'), same(wsLayout));
+    });
+
+    test('addLayoutSnapshot skips duplicate snapshot ids', () async {
+      final first = LayoutState(
+        layoutName: 'A',
+        businessContext: 'ws-a',
+        swimlanes: [],
+      );
+      final duplicate = LayoutState(
+        snapshotId: first.snapshotId,
+        layoutName: 'A2',
+        businessContext: 'ws-a',
+        swimlanes: [],
+      );
+      await manager.addLayoutSnapshot(first);
+      await manager.addLayoutSnapshot(duplicate);
+
+      expect(manager.layoutForContext('ws-a'), same(first));
+      expect(manager.layoutForContext('ws-a')?.layoutName, 'A');
+    });
+
+    test('switchLayout switches to the context snapshot', () async {
+      final wsLayout = LayoutState(
+        layoutName: 'GitHub',
+        businessContext: 'ws-github',
+        swimlanes: [],
+      );
+      await manager.addLayoutSnapshot(wsLayout);
+
+      await manager.switchLayout(wsLayout.snapshotId);
+      expect(manager.activeLayout, same(wsLayout));
+      expect(manager.activeLayout!.isCurrentActive, isTrue);
+      expect(manager.activeLayout!.businessContext, 'ws-github');
+    });
+  });
+
   group('ThemeManager', () {
     late ThemeManager themeManager;
 

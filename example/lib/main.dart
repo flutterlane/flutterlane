@@ -3,6 +3,212 @@ import 'package:flutterlane/flutterlane.dart';
 
 void main() => runApp(const FlutterLaneExampleApp());
 
+// ============================================================
+// Workspace dataset — each window tab binds to one workspace.
+// Workspaces share view types (editor, explorer, terminal, ...)
+// but each renders its own data through ViewInstance.businessContext.
+// ============================================================
+
+class _WorkspaceFile {
+  final String name;
+  final String content;
+  const _WorkspaceFile(this.name, this.content);
+}
+
+class _TreeNode {
+  final String name;
+  final bool isFolder;
+  final List<_TreeNode> children;
+  const _TreeNode.folder(this.name, [this.children = const []])
+      : isFolder = true;
+  const _TreeNode.file(this.name)
+      : isFolder = false,
+        children = const [];
+}
+
+enum _WorkspaceLayoutKind { fullIde, docs, repo }
+
+class _Workspace {
+  final String id;
+  final String title;
+  final String url;
+  final bool closable;
+  final _WorkspaceLayoutKind layoutKind;
+  final List<_TreeNode> tree;
+  final List<_WorkspaceFile> files;
+  final String defaultFile;
+
+  const _Workspace({
+    required this.id,
+    required this.title,
+    required this.url,
+    required this.closable,
+    required this.layoutKind,
+    required this.tree,
+    required this.files,
+    required this.defaultFile,
+  });
+
+  String contentOf(String name) {
+    for (final f in files) {
+      if (f.name == name) return f.content;
+    }
+    return '';
+  }
+}
+
+const List<_Workspace> _kWorkspaces = [
+  // ── FlutterLane — product site (the default, non-closable tab) ──
+  _Workspace(
+    id: 'flutterlane',
+    title: 'FlutterLane',
+    url: 'flutterlane.dev',
+    closable: false,
+    layoutKind: _WorkspaceLayoutKind.fullIde,
+    tree: [
+      _TreeNode.folder('src', [
+        _TreeNode.folder('core', [
+          _TreeNode.file('flutter_lane_manager.dart'),
+        ]),
+        _TreeNode.folder('models', [
+          _TreeNode.file('swimlane.dart'),
+          _TreeNode.file('section.dart'),
+        ]),
+      ]),
+      _TreeNode.folder('example', [
+        _TreeNode.file('main.dart'),
+      ]),
+      _TreeNode.file('pubspec.yaml'),
+      _TreeNode.file('README.md'),
+    ],
+    files: [
+      _WorkspaceFile('README.md', '''
+# FlutterLane
+
+A dockable, drag-and-drop layout engine for Flutter.
+
+## Features
+- Swimlanes, sections and panes
+- Drag & drop reorganization
+- Persisted layouts & themes
+
+## Install
+flutter pub add flutterlane
+'''),
+      _WorkspaceFile('CHANGELOG.md', '''
+# Changelog
+
+## 0.4.0
+- Window tabs with per-tab workspace layouts
+- Long-press swimlane drag
+
+## 0.3.0
+- Section collapse, resize & close
+'''),
+    ],
+    defaultFile: 'README.md',
+  ),
+
+  // ── Design Docs — documentation site with markdown preview ──
+  _Workspace(
+    id: 'designdocs',
+    title: 'Design Docs',
+    url: 'docs.flutterlane.dev',
+    closable: true,
+    layoutKind: _WorkspaceLayoutKind.docs,
+    tree: [
+      _TreeNode.folder('docs', [
+        _TreeNode.file('index.md'),
+        _TreeNode.folder('guides', [
+          _TreeNode.file('layout.md'),
+        ]),
+        _TreeNode.folder('api', [
+          _TreeNode.file('swimlane.md'),
+        ]),
+      ]),
+    ],
+    files: [
+      _WorkspaceFile('docs/index.md', '''
+# Design Docs
+
+Documentation for the FlutterLane design system.
+
+## Layout Engine
+Swimlanes organize the window into resizable columns.
+Sections stack vertically inside a swimlane.
+
+## Theming
+Every surface color comes from FlutterLaneThemeData.
+'''),
+      _WorkspaceFile('docs/guides/layout.md', '''
+# Layout Guide
+
+## Swimlanes
+Swimlanes are horizontal columns. Each holds sections.
+
+## Sections
+Sections stack vertically and can be collapsed.
+'''),
+      _WorkspaceFile('docs/api/swimlane.md', '''
+# Swimlane API
+
+## Swimlane
+- id: String
+- flex: double
+- fixedWidth: double?
+- sections: List<Section>
+'''),
+    ],
+    defaultFile: 'docs/index.md',
+  ),
+
+  // ── GitHub — source repository browsing ──
+  _Workspace(
+    id: 'github',
+    title: 'GitHub',
+    url: 'github.com/flutterlane',
+    closable: true,
+    layoutKind: _WorkspaceLayoutKind.repo,
+    tree: [
+      _TreeNode.file('README.md'),
+      _TreeNode.file('CONTRIBUTING.md'),
+      _TreeNode.folder('lib', [
+        _TreeNode.file('main.dart'),
+      ]),
+    ],
+    files: [
+      _WorkspaceFile('README.md', '''
+# flutterlane
+
+VS Code-style workspaces in Flutter.
+
+## Repository
+- lib/ — layout engine
+- example/ — demo workspace
+'''),
+      _WorkspaceFile('CONTRIBUTING.md', '''
+# Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Open a pull request
+'''),
+    ],
+    defaultFile: 'README.md',
+  ),
+];
+
+_Workspace _workspaceById(String id) {
+  for (final ws in _kWorkspaces) {
+    if (ws.id == id) return ws;
+  }
+  return _kWorkspaces.first;
+}
+
+// ============================================================
+// App
+// ============================================================
+
 class FlutterLaneExampleApp extends StatefulWidget {
   const FlutterLaneExampleApp({super.key});
 
@@ -13,27 +219,80 @@ class FlutterLaneExampleApp extends StatefulWidget {
 class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
   final FlutterLaneManager _manager = FlutterLaneManager();
   final TabBarController _windowTabs = TabBarController(
-    initialTabs: const [
-      TabData(title: 'FlutterLane', url: 'flutterlane.dev', closable: false),
-      TabData(title: 'Design Docs', url: 'docs.flutterlane.dev'),
-      TabData(title: 'GitHub', url: 'github.com/flutterlane'),
+    initialTabs: [
+      for (final ws in _kWorkspaces)
+        TabData(
+          title: ws.title,
+          url: ws.url,
+          businessId: ws.id,
+          closable: ws.closable,
+        ),
     ],
   );
+
+  /// Shared "open file" per workspace so clicking a markdown file in the
+  /// Explorer opens it in the Editor (and Preview) panes of that workspace.
+  final Map<String, ValueNotifier<String>> _openFiles = {};
+  String _activeActivity = 'explorer';
   bool _ready = false;
+
+  ValueNotifier<String> _openFileFor(_Workspace ws) => _openFiles.putIfAbsent(
+        ws.id,
+        () => ValueNotifier<String>(ws.defaultFile),
+      );
 
   @override
   void initState() {
     super.initState();
+    _windowTabs.onChange = _handleWindowTabChange;
     _init();
   }
 
   Future<void> _init() async {
+    _registerViews();
+
+    await _manager.init();
+    await _manager.themeManager.setTheme(FlutterLaneThemeType.dark);
+
+    // Restore per-workspace layouts persisted from previous sessions.
+    await _restoreWorkspaceSnapshots();
+
+    // Apply the dedicated layout of the currently active tab.
+    await _applyLayoutForActiveTab();
+
+    setState(() => _ready = true);
+  }
+
+  /// Ensures every workspace owns a persisted LayoutState snapshot
+  /// (tagged by businessContext = workspace id). On later launches the
+  /// manager reloads these snapshots from disk, so each window tab's
+  /// layout — swimlanes, sections, panes, collapse/resize state —
+  /// survives app restarts.
+  Future<void> _restoreWorkspaceSnapshots() async {
+    for (final ws in _kWorkspaces) {
+      if (_manager.layoutForContext(ws.id) != null) continue;
+      await _manager.addLayoutSnapshot(LayoutState(
+        layoutName: ws.title,
+        businessContext: ws.id,
+        swimlanes: _buildWorkspaceLayout(ws),
+      ));
+    }
+  }
+
+  void _registerViews() {
     _manager.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'explorer',
       viewDisplayName: 'Explorer',
       icon: Icons.folder_outlined,
       isSystemBuiltIn: true,
-      viewBuilder: (ctx, bizCtx, state) => const _ExplorerView(),
+      viewBuilder: (ctx, bizCtx, state) {
+        final ws = _workspaceById(bizCtx);
+        return _ExplorerView(
+          workspace: ws,
+          openFile: _openFileFor(ws),
+          onOpenFile: (name) => _openFileFor(ws).value = name,
+        );
+      },
     ));
 
     _manager.registry.registerPaneView(ViewInstanceMeta(
@@ -47,7 +306,8 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       viewTypeId: 'terminal',
       viewDisplayName: 'Terminal',
       icon: Icons.terminal,
-      viewBuilder: (ctx, bizCtx, state) => const _TerminalView(),
+      viewBuilder: (ctx, bizCtx, state) =>
+          _TerminalView(workspace: _workspaceById(bizCtx)),
     ));
 
     _manager.registry.registerPaneView(ViewInstanceMeta(
@@ -65,73 +325,210 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
     ));
 
     _manager.registry.registerPaneView(ViewInstanceMeta(
+      viewTypeId: 'debug_console',
+      viewDisplayName: 'Debug Console',
+      icon: Icons.bug_report,
+      viewBuilder: (ctx, bizCtx, state) => const _DebugConsoleView(),
+    ));
+
+    _manager.registry.registerPaneView(ViewInstanceMeta(
+      viewTypeId: 'ports',
+      viewDisplayName: 'Ports',
+      icon: Icons.lan,
+      viewBuilder: (ctx, bizCtx, state) => const _PortsView(),
+    ));
+
+    _manager.registry.registerPaneView(ViewInstanceMeta(
+      viewTypeId: 'preview',
+      viewDisplayName: 'Preview',
+      icon: Icons.visibility,
+      viewBuilder: (ctx, bizCtx, state) {
+        final ws = _workspaceById(bizCtx);
+        return _MarkdownPreviewView(
+          workspace: ws,
+          openFile: _openFileFor(ws),
+        );
+      },
+    ));
+
+    _manager.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'activitybar',
       viewDisplayName: 'Activity Bar',
       icon: Icons.apps,
-      viewBuilder: (ctx, bizCtx, state) => _ActivityBar(manager: _manager),
+      viewBuilder: (ctx, bizCtx, state) => _ActivityBar(
+        manager: _manager,
+        activeActivity: _activeActivity,
+        onActivityTap: _handleActivityTap,
+      ),
     ));
+
     _manager.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'editor',
       viewDisplayName: 'Editor',
       icon: Icons.code,
-      viewBuilder: (ctx, bizCtx, state) => const _EditorView(),
+      viewBuilder: (ctx, bizCtx, state) {
+        final ws = _workspaceById(bizCtx);
+        return _EditorView(
+          workspace: ws,
+          openFile: _openFileFor(ws),
+        );
+      },
     ));
+
     _manager.registry.registerPaneView(ViewInstanceMeta(
       viewTypeId: 'copilot',
       viewDisplayName: 'Copilot',
       icon: Icons.auto_fix_high,
       viewBuilder: (ctx, bizCtx, state) => _CopilotPane(manager: _manager),
     ));
-
-    await _manager.init();
-    await _manager.themeManager.setTheme(FlutterLaneThemeType.dark);
-
-    final active = _manager.activeLayout;
-    final hasActivityBar = active?.swimlanes.any(
-          (lane) => lane.sections.any(
-            (section) => section.panes.any(
-              (pane) => pane.viewInstance.viewTypeId == 'activitybar',
-            ),
-          ),
-        ) ??
-        false;
-    if (active != null && !hasActivityBar) {
-      active.swimlanes
-        ..clear()
-        ..addAll([
-          _demoSwimlane(0.12, '', 'activitybar', fixedWidth: 64),
-          _demoSwimlane(0.23, 'Explorer', 'explorer'),
-          _demoSwimlane(0.43, 'main.dart', 'editor'),
-          _demoSwimlane(0.22, 'Copilot', 'copilot'),
-        ]);
-      await _manager.save();
-    }
-
-    setState(() => _ready = true);
   }
 
-  Swimlane _demoSwimlane(
-    double flex,
-    String title,
-    String viewTypeId, {
-    double? fixedWidth,
-  }) {
-    final section = Section(
-      title: title,
-      canToggle: fixedWidth == null,
-      canAddPane: fixedWidth == null,
-    );
+  /// Switching/adding/closing a window tab opens that tab's own layout.
+  void _handleWindowTabChange(TabBarChangeEvent e) {
+    if (e.type == TabChangeType.update) return;
+    _applyLayoutForActiveTab();
+  }
+
+  /// ActivityBar: clicking an icon (e.g. folder_copy_rounded) shows the
+  /// dedicated layout of the *currently active* window tab.
+  void _handleActivityTap(String activityId) {
+    setState(() => _activeActivity = activityId);
+    _applyLayoutForActiveTab();
+  }
+
+  Future<void> _applyLayoutForActiveTab() async {
+    if (_manager.activeLayout == null) return;
+
+    final activeId = _windowTabs.active();
+    final tab = activeId == null
+        ? _windowTabs.tabs.first
+        : (_windowTabs.get(activeId) ?? _windowTabs.tabs.first);
+    final ws = _workspaceById(tab.businessId ?? tab.id ?? _kWorkspaces.first.id);
+
+    // Each window tab owns its persisted LayoutState snapshot
+    // (businessContext = workspace id). Switching tabs = switching snapshots.
+    var snapshot = _manager.layoutForContext(ws.id);
+    if (snapshot == null) {
+      snapshot = LayoutState(
+        layoutName: ws.title,
+        businessContext: ws.id,
+        swimlanes: _buildWorkspaceLayout(ws),
+      );
+      await _manager.addLayoutSnapshot(snapshot);
+    }
+    if (_manager.activeLayout?.snapshotId != snapshot.snapshotId) {
+      await _manager.switchLayout(snapshot.snapshotId);
+    }
+    if (mounted) setState(() {});
+  }
+
+  // ── Layout builders ──
+
+  List<Swimlane> _buildWorkspaceLayout(_Workspace ws) {
+    switch (ws.layoutKind) {
+      case _WorkspaceLayoutKind.fullIde:
+        return _buildFullIdeLayout(ws);
+      case _WorkspaceLayoutKind.docs:
+        return _buildDocsLayout(ws);
+      case _WorkspaceLayoutKind.repo:
+        return _buildRepoLayout(ws);
+    }
+  }
+
+  Pane _pane(String viewTypeId, _Workspace ws) => Pane(
+        paneId: generateId(),
+        viewInstance:
+            ViewInstance(viewTypeId: viewTypeId, businessContext: ws.id),
+      );
+
+  Swimlane _activityBarLane() {
+    final section = Section(title: '', canToggle: false, canAddPane: false);
     section.addPane(Pane(
       paneId: generateId(),
-      viewInstance: ViewInstance(viewTypeId: viewTypeId),
+      viewInstance: const ViewInstance(viewTypeId: 'activitybar'),
     ));
     return Swimlane(
-      flex: flex,
-      minWidth: fixedWidth ?? 120,
-      fixedWidth: fixedWidth,
-      canClose: fixedWidth == null,
+      flex: 0,
+      minWidth: 64,
+      fixedWidth: 48,
+      canClose: false,
       sections: [section],
     );
+  }
+
+  Swimlane _explorerLane(_Workspace ws) {
+    final explorer = Section(title: 'Explorer', canToggle: true, canAddPane: true);
+    explorer.addPane(_pane('explorer', ws));
+    return Swimlane(flex: 20, minWidth: 150, canClose: true, sections: [explorer]);
+  }
+
+  /// Full IDE (default): activity bar | explorer | editor + operation | copilot
+  List<Swimlane> _buildFullIdeLayout(_Workspace ws) {
+    final editor = Section(title: 'Editor', canToggle: true, canAddPane: true);
+    editor.addPane(_pane('editor', ws));
+
+    final operation = Section(title: 'Operation', canToggle: true, canAddPane: true);
+    operation
+      ..addPane(_pane('problems', ws))
+      ..addPane(_pane('output', ws))
+      ..addPane(_pane('debug_console', ws))
+      ..addPane(_pane('terminal', ws))
+      ..addPane(_pane('ports', ws));
+
+    final copilot = Section(title: 'Copilot', canToggle: true, canAddPane: true);
+    copilot.addPane(_pane('copilot', ws));
+
+    return [
+      _activityBarLane(),
+      _explorerLane(ws),
+      Swimlane(
+        flex: 50,
+        minWidth: 300,
+        canClose: true,
+        sections: [editor, operation],
+      ),
+      Swimlane(flex: 22, minWidth: 200, canClose: true, sections: [copilot]),
+    ];
+  }
+
+  /// Docs site: activity bar | explorer | editor + markdown preview
+  List<Swimlane> _buildDocsLayout(_Workspace ws) {
+    final editor = Section(title: 'Editor', canToggle: true, canAddPane: true);
+    editor.addPane(_pane('editor', ws));
+
+    final preview = Section(title: 'Preview', canToggle: true, canAddPane: true);
+    preview.addPane(_pane('preview', ws));
+
+    return [
+      _activityBarLane(),
+      _explorerLane(ws),
+      Swimlane(
+        flex: 50,
+        minWidth: 300,
+        canClose: true,
+        sections: [editor, preview],
+      ),
+    ];
+  }
+
+  /// Repo browsing: activity bar | explorer | editor + terminal
+  List<Swimlane> _buildRepoLayout(_Workspace ws) {
+    final editor = Section(title: 'Editor', canToggle: true, canAddPane: true);
+    editor.addPane(_pane('editor', ws));
+
+    final terminal = Section(title: 'Terminal', canToggle: true, canAddPane: true);
+    terminal.addPane(_pane('terminal', ws));
+
+    return [
+      _activityBarLane(),
+      _explorerLane(ws),
+      Swimlane(
+        flex: 50,
+        minWidth: 300,
+        canClose: true,
+        sections: [editor, terminal],
+      ),
+    ];
   }
 
   @override
@@ -167,6 +564,8 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
                   manager: _manager,
                   windowTabs: _windowTabs,
                   isDark: isDark,
+                  onResetLayout: _handleResetLayout,
+                  onSelectLayout: _handleSelectLayout,
                 ),
                 Expanded(
                   child: FlutterLaneWorkbench(manager: _manager),
@@ -179,16 +578,76 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       },
     );
   }
+
+  /// Layout dropdown: picking a workspace-bound snapshot activates its
+  /// window tab (which applies that tab's dedicated layout). Generic
+  /// user-saved snapshots just become the active layout.
+  void _handleSelectLayout(String snapshotId) {
+    final layout = _manager.layouts
+        .where((l) => l.snapshotId == snapshotId)
+        .firstOrNull;
+    if (layout == null) return;
+    if (layout.businessContext.isNotEmpty) {
+      for (final ws in _kWorkspaces) {
+        if (ws.id == layout.businessContext) {
+          final tab = _windowTabs.tabs.firstWhere(
+            (t) => t.businessId == ws.id,
+            orElse: () => _windowTabs.tabs.first,
+          );
+          if (tab.id != null) _windowTabs.activate(tab.id!);
+          return;
+        }
+      }
+    }
+    _manager.switchLayout(snapshotId);
+  }
+
+  /// Reset to default layout: rebuild the default (FlutterLane) workspace's
+  /// persisted snapshot from a pristine copy, then activate its tab.
+  Future<void> _handleResetLayout() async {
+    final defaultWs = _kWorkspaces.first;
+    var snapshot = _manager.layoutForContext(defaultWs.id);
+    if (snapshot == null) {
+      snapshot = LayoutState(
+        layoutName: defaultWs.title,
+        businessContext: defaultWs.id,
+        swimlanes: _buildWorkspaceLayout(defaultWs),
+      );
+      await _manager.addLayoutSnapshot(snapshot);
+    } else {
+      snapshot.swimlanes = _buildWorkspaceLayout(defaultWs);
+      await _manager.save();
+    }
+    if (_manager.activeLayout?.snapshotId != snapshot.snapshotId) {
+      await _manager.switchLayout(snapshot.snapshotId);
+    }
+    final tab = _windowTabs.tabs.firstWhere(
+      (t) => t.businessId == defaultWs.id,
+      orElse: () => _windowTabs.tabs.first,
+    );
+    if (tab.id != null && _windowTabs.active() != tab.id) {
+      _windowTabs.activate(tab.id!);
+    }
+    if (mounted) setState(() {});
+  }
 }
+
+// ============================================================
+// Chrome header
+// ============================================================
 
 class _ChromeHeader extends StatelessWidget {
   final FlutterLaneManager manager;
   final TabBarController windowTabs;
   final bool isDark;
+  final VoidCallback onResetLayout;
+  final ValueChanged<String> onSelectLayout;
 
   const _ChromeHeader({
     required this.manager,
     required this.windowTabs,
+    required this.onResetLayout,
+    required this.onSelectLayout,
     this.isDark = false,
   });
 
@@ -202,8 +661,8 @@ class _ChromeHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Row(
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               _TrafficButton(color: Color(0xFFff5f57)),
               SizedBox(width: 8),
               _TrafficButton(color: Color(0xFFfebc2e)),
@@ -223,7 +682,7 @@ class _ChromeHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          _LayoutDropdown(manager: manager),
+          _LayoutDropdown(manager: manager, onSelectLayout: onSelectLayout),
           const SizedBox(width: 8),
           IconButton(
             icon: Icon(Icons.save_outlined,
@@ -247,7 +706,7 @@ class _ChromeHeader extends StatelessWidget {
             icon:
                 Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
             tooltip: 'Reset to default layout',
-            onPressed: () => manager.resetToDefault(),
+            onPressed: () => onResetLayout(),
           ),
         ],
       ),
@@ -272,32 +731,97 @@ class _TrafficButton extends StatelessWidget {
   }
 }
 
-class _HeaderTab extends StatelessWidget {
-  final String label;
-  final bool selected;
+// ============================================================
+// ActivityBar — folder_copy_rounded applies the active tab's layout
+// ============================================================
 
-  const _HeaderTab(this.label, {required this.selected});
+class _ActivityBar extends StatelessWidget {
+  final FlutterLaneManager manager;
+  final String activeActivity;
+  final ValueChanged<String> onActivityTap;
+
+  const _ActivityBar({
+    required this.manager,
+    required this.activeActivity,
+    required this.onActivityTap,
+  });
+
+  static const List<(String, IconData)> _items = [
+    ('explorer', Icons.folder_copy_rounded),
+    ('search', Icons.search_rounded),
+    ('terminal', Icons.terminal_rounded),
+    ('debug', Icons.bug_report_rounded),
+    ('chat', Icons.chat_rounded),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? Colors.white : Colors.white54;
+    final theme = manager.currentTheme;
+
     return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      margin: const EdgeInsets.only(right: 6),
-      decoration: BoxDecoration(
-        color: selected
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(6),
+      width: 48,
+      color: theme.swimlaneBackground,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          ..._items.map((item) {
+            final isSelected = item.$1 == activeActivity;
+            return _ActivityIcon(
+              icon: item.$2,
+              selected: isSelected,
+              theme: theme,
+              onTap: () => onActivityTap(item.$1),
+            );
+          }),
+          const Spacer(),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.settings_outlined,
+                size: 20, color: theme.tabInactiveTextColor),
+          ),
+          const SizedBox(height: 10),
+        ],
       ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: color,
+    );
+  }
+}
+
+class _ActivityIcon extends StatelessWidget {
+  final IconData icon;
+  final bool selected;
+  final FlutterLaneThemeData theme;
+  final VoidCallback onTap;
+
+  const _ActivityIcon({
+    required this.icon,
+    required this.selected,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Open view',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 32,
+          height: 32,
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: selected ? theme.tabActiveBackground : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: selected ? theme.tabActiveTextColor : theme.tabInactiveTextColor,
           ),
         ),
       ),
@@ -305,148 +829,9 @@ class _HeaderTab extends StatelessWidget {
   }
 }
 
-class _ActivityBar extends StatelessWidget {
-  final FlutterLaneManager manager;
-
-  const _ActivityBar({required this.manager});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
-    const icons = [
-      Icons.folder_copy_rounded,
-      Icons.search_rounded,
-      Icons.terminal_rounded,
-      Icons.bug_report_rounded,
-      Icons.chat_rounded,
-    ];
-
-    return Container(
-      width: 58,
-      color: theme.swimlaneBackground,
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          ...icons.map((icon) {
-            final isSelected = icon == Icons.folder_copy_rounded;
-            return Container(
-              width: 38,
-              height: 38,
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                color:
-                    isSelected ? theme.tabActiveBackground : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 18, color: theme.tabActiveTextColor),
-            );
-          }),
-          const Spacer(),
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.settings_outlined,
-                size: 18, color: theme.tabInactiveTextColor),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExplorerPane extends StatelessWidget {
-  final FlutterLaneManager manager;
-
-  const _ExplorerPane({required this.manager});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
-
-    return Container(
-      color: theme.sectionBackground,
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Explorer',
-                style: TextStyle(
-                  color: theme.sectionHeaderTextColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              const Icon(Icons.more_horiz, size: 14, color: Colors.white54),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const _FolderRow('flutterlane', Icons.folder_open_rounded, true),
-          const _FolderRow('lib', Icons.folder_open_rounded, false),
-          const _FolderRow('src', Icons.folder_open_rounded, false),
-          const _FolderRow('example', Icons.folder_open_rounded, false),
-          const _FolderRow('docs', Icons.folder_open_rounded, false),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.tabBarBackground,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.developer_board,
-                    size: 14, color: theme.tabActiveTextColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Open editors',
-                  style: TextStyle(
-                    color: theme.tabActiveTextColor,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FolderRow extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool root;
-
-  const _FolderRow(this.label, this.icon, this.root);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 12, color: Colors.amberAccent),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.white70),
-          ),
-          if (root) const Spacer(),
-        ],
-      ),
-    );
-  }
-}
+// ============================================================
+// Copilot
+// ============================================================
 
 class _CopilotPane extends StatelessWidget {
   final FlutterLaneManager manager;
@@ -459,15 +844,15 @@ class _CopilotPane extends StatelessWidget {
 
     return Container(
       color: theme.sectionBackground,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.auto_fix_high_rounded,
+              const Icon(Icons.auto_fix_high_rounded,
                   size: 14, color: Colors.indigoAccent),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text(
                 'Copilot',
                 style: TextStyle(
@@ -481,13 +866,13 @@ class _CopilotPane extends StatelessWidget {
                   size: 14, color: theme.tabInactiveTextColor),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.tabBarBackground,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: theme.tabBorderColor, width: 1),
               ),
               child: Column(
@@ -497,37 +882,46 @@ class _CopilotPane extends StatelessWidget {
                     'Ask Copilot',
                     style: TextStyle(
                       color: theme.sectionHeaderTextColor,
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const _PromptBubble(
-                      'Generate a VS Code-inspired IDE shell for FlutterLane.'),
                   const SizedBox(height: 8),
-                  const _PromptBubble(
-                    'Add a Chrome-like header with tabs and workspace actions.',
-                    accent: true,
+                  const Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _PromptBubble(
+                              'Generate a VS Code-inspired IDE shell for FlutterLane.'),
+                          SizedBox(height: 6),
+                          _PromptBubble(
+                            'Add a Chrome-like header with tabs and workspace actions.',
+                            accent: true,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 10),
+                        horizontal: 8, vertical: 8),
                     decoration: BoxDecoration(
                       color: theme.tabActiveBackground,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: theme.tabBorderColor, width: 1),
                     ),
                     child: Row(
                       children: [
                         const Icon(Icons.send_rounded,
                             size: 14, color: Colors.indigoAccent),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
                           'Ask a question...',
                           style: TextStyle(
                             color: theme.tabInactiveTextColor,
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -566,6 +960,10 @@ class _PromptBubble extends StatelessWidget {
   }
 }
 
+// ============================================================
+// Dialogs & chrome helpers
+// ============================================================
+
 void _showSaveDialog(BuildContext context, FlutterLaneManager mgr) {
   final controller = TextEditingController();
   showDialog(
@@ -598,8 +996,12 @@ void _showSaveDialog(BuildContext context, FlutterLaneManager mgr) {
 
 class _LayoutDropdown extends StatelessWidget {
   final FlutterLaneManager manager;
+  final ValueChanged<String> onSelectLayout;
 
-  const _LayoutDropdown({required this.manager});
+  const _LayoutDropdown({
+    required this.manager,
+    required this.onSelectLayout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -638,7 +1040,7 @@ class _LayoutDropdown extends StatelessWidget {
               .toList(),
           onChanged: (id) {
             if (id != null) {
-              manager.switchLayout(id);
+              onSelectLayout(id);
             }
           },
         ),
@@ -700,45 +1102,124 @@ class _StatusBar extends StatelessWidget {
   }
 }
 
+// ============================================================
+// Workspace-aware views — same view type, per-workspace data
+// ============================================================
+
 class _EditorView extends StatelessWidget {
-  const _EditorView();
+  final _Workspace workspace;
+  final ValueNotifier<String> openFile;
+
+  const _EditorView({required this.workspace, required this.openFile});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    const lines = [
-      'import \'package:flutterlane/flutterlane.dart\';',
-      '',
-      'class Workspace extends StatelessWidget {',
-      '  const Workspace({super.key});',
-      '',
-      '  @override',
-      '  Widget build(BuildContext context) {',
-      '    return FlutterLaneWorkbench(manager: manager);',
-      '  }',
-      '}',
-    ];
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      padding: const EdgeInsets.fromLTRB(24, 18, 16, 12),
-      child: ListView.builder(
-        itemCount: lines.length,
-        itemBuilder: (context, index) => Text(
-          '${(index + 1).toString().padLeft(2)}  ${lines[index]}',
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withValues(alpha: .82),
-            fontFamily: 'monospace',
-            fontSize: 12,
-            height: 1.65,
+    final theme = FlutterLaneTheme.of(context);
+    final ws = workspace;
+
+    return ValueListenableBuilder<String>(
+      valueListenable: openFile,
+      builder: (context, activeFile, _) {
+        final lines = ws.contentOf(activeFile).trimRight().split('\n');
+        return Container(
+          color: theme.paneContentBackground,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // File tabs — per-workspace markdown files
+              Container(
+                height: 30,
+                color: theme.tabBarBackground,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  children: [
+                    for (final file in ws.files)
+                      GestureDetector(
+                        onTap: () => openFile.value = file.name,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: file.name == activeFile
+                                ? theme.tabActiveBackground
+                                : Colors.transparent,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: file.name == activeFile
+                                    ? theme.tabActiveTextColor
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.article_outlined,
+                                  size: 12,
+                                  color: file.name == activeFile
+                                      ? theme.tabActiveTextColor
+                                      : theme.tabInactiveTextColor),
+                              const SizedBox(width: 4),
+                              Text(
+                                file.name,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: file.name == activeFile
+                                      ? theme.tabActiveTextColor
+                                      : theme.tabInactiveTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  itemCount: lines.length,
+                  itemBuilder: (context, index) {
+                    final line = lines[index];
+                    final isHeader = line.startsWith('#');
+                    return Text(
+                      '${(index + 1).toString().padLeft(2)}  $line',
+                      style: TextStyle(
+                        color: isHeader
+                            ? theme.tabActiveTextColor
+                            : theme.sectionHeaderTextColor
+                                .withValues(alpha: .85),
+                        fontWeight:
+                            isHeader ? FontWeight.w600 : FontWeight.w400,
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        height: 1.65,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
 
 class _ExplorerView extends StatelessWidget {
-  const _ExplorerView();
+  final _Workspace workspace;
+  final ValueNotifier<String> openFile;
+  final ValueChanged<String> onOpenFile;
+
+  const _ExplorerView({
+    required this.workspace,
+    required this.openFile,
+    required this.onOpenFile,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -747,67 +1228,191 @@ class _ExplorerView extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(8),
         children: [
-          _treeTile('src', [
-            _treeTile('core', [
-              _treeItem('flutter_lane_manager.dart'),
-            ]),
-            _treeTile('models', [
-              _treeItem('swimlane.dart'),
-              _treeItem('section.dart'),
-              _treeItem('pane.dart'),
-              _treeItem('layout_state.dart'),
-            ]),
-            _treeTile('widgets', [
-              _treeItem('workbench.dart'),
-            ]),
-          ]),
-          _treeTile('example', [
-            _treeItem('main.dart'),
-          ]),
-          _treeItem('pubspec.yaml'),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              workspace.title,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ),
+          for (final node in workspace.tree) _buildNode(node),
         ],
       ),
     );
   }
 
-  Widget _treeItem(String name) {
+  /// Resolves the workspace file a tree leaf opens. Tree leaves display a
+  /// short basename while workspace files may be nested paths
+  /// (e.g. 'docs/index.md'), so match by exact name or trailing '/basename'.
+  String? _fileNameFor(_TreeNode node) {
+    if (node.isFolder) return null;
+    for (final f in workspace.files) {
+      if (f.name == node.name ||
+          f.name.endsWith('/${node.name}')) {
+        return f.name;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildNode(_TreeNode node) {
+    if (node.isFolder) {
+      return ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: EdgeInsets.zero,
+        initiallyExpanded: true,
+        title: Row(
+          children: [
+            Icon(Icons.folder_outlined, size: 14, color: Colors.amber[700]),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                node.name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        children: [for (final child in node.children) _buildNode(child)],
+      );
+    }
+
+    final isMarkdown = node.name.endsWith('.md');
+    final fileName = _fileNameFor(node);
+    return ValueListenableBuilder<String>(
+      valueListenable: openFile,
+      builder: (context, activeFile, _) {
+        final isActive = activeFile == fileName;
+        return InkWell(
+          onTap: fileName != null ? () => onOpenFile(fileName) : null,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 24, top: 2, bottom: 2),
+            child: Row(
+              children: [
+                Icon(
+                  isMarkdown
+                      ? Icons.article_outlined
+                      : Icons.insert_drive_file_outlined,
+                  size: 14,
+                  color: isActive
+                      ? Colors.lightBlue
+                      : isMarkdown
+                          ? Colors.lightBlue[300]
+                          : Colors.grey[600],
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    node.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isActive
+                          ? Colors.lightBlue
+                          : Colors.grey[200],
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+                if (fileName != null)
+                  Icon(
+                    Icons.open_in_new,
+                    size: 11,
+                    color: Colors.grey[700],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MarkdownPreviewView extends StatelessWidget {
+  final _Workspace workspace;
+  final ValueNotifier<String> openFile;
+
+  const _MarkdownPreviewView({
+    required this.workspace,
+    required this.openFile,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = FlutterLaneTheme.of(context);
+
+    return ValueListenableBuilder<String>(
+      valueListenable: openFile,
+      builder: (context, activeFile, _) {
+        final lines =
+            workspace.contentOf(activeFile).trimRight().split('\n');
+        return Container(
+          color: theme.paneContentBackground,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  if (line.startsWith('### '))
+                    _previewLine(line.substring(4),
+                        theme.sectionHeaderTextColor, 13)
+                  else if (line.startsWith('## '))
+                    _previewLine(line.substring(3), theme.tabActiveTextColor, 15)
+                  else if (line.startsWith('# '))
+                    _previewLine(line.substring(2), theme.tabActiveTextColor, 18)
+                  else if (line.startsWith('- '))
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8, bottom: 2),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('•  ',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.tabInactiveTextColor)),
+                          Expanded(
+                            child: Text(line.substring(2),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: theme.sectionHeaderTextColor
+                                        .withValues(alpha: .85))),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (line.trim().isEmpty)
+                    const SizedBox(height: 8)
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(line,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.sectionHeaderTextColor
+                                  .withValues(alpha: .85))),
+                    ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _previewLine(String text, Color color, double size) {
     return Padding(
-      padding: const EdgeInsets.only(left: 24, top: 2),
-      child: Row(
-        children: [
-          Icon(Icons.insert_drive_file_outlined,
-              size: 14, color: Colors.grey[600]),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: size,
+          fontWeight: FontWeight.w600,
+        ),
       ),
-    );
-  }
-
-  Widget _treeTile(String name, List<Widget> children) {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: EdgeInsets.zero,
-      title: Row(
-        children: [
-          Icon(Icons.folder_outlined, size: 14, color: Colors.amber[700]),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-      children: children,
     );
   }
 }
@@ -847,42 +1452,36 @@ class _SearchView extends StatelessWidget {
 }
 
 class _TerminalView extends StatelessWidget {
-  const _TerminalView();
+  final _Workspace workspace;
+
+  const _TerminalView({required this.workspace});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF1E1E1E),
       padding: const EdgeInsets.all(8),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '\$ flutterlane build',
-            style: TextStyle(
+            '\$ flutterlane ${workspace.id}',
+            style: const TextStyle(
               fontSize: 12,
               fontFamily: 'monospace',
               color: Color(0xFF4EC9B0),
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
-            'Building FlutterLane project...',
-            style: TextStyle(
+            'Working on ${workspace.title} (${workspace.url})...',
+            style: const TextStyle(
               fontSize: 12,
               fontFamily: 'monospace',
-              color: Color(0xFFCCCCCC),
+              color: Color(0xFF569CD6),
             ),
           ),
-          Text(
-            '✓ 0 issues found',
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'monospace',
-              color: Color(0xFF4EC9B0),
-            ),
-          ),
-          Text(
+          const Text(
             '\$ _',
             style: TextStyle(
               fontSize: 12,
@@ -933,6 +1532,106 @@ class _ProblemsView extends StatelessWidget {
             'Drag & drop panes between sections to reorganize.\n'
             'Drag section headers across swimlanes to move them.\n'
             'Use the hover zone on the right edge to add swimlanes.',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DebugConsoleView extends StatelessWidget {
+  const _DebugConsoleView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF1E1E1E),
+      padding: const EdgeInsets.all(8),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Debug session started',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: Color(0xFF4EC9B0),
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Debugger attached to process',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: Color(0xFFCCCCCC),
+            ),
+          ),
+          Text(
+            'Breakpoints: 3 set',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: Color(0xFF569CD6),
+            ),
+          ),
+          Text(
+            '\$ _',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: Color(0xFFCCCCCC),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortsView extends StatelessWidget {
+  const _PortsView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Forwarded Ports',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          _portRow('3000', 'Flutter Web', true),
+          _portRow('8080', 'API Server', false),
+          _portRow('5000', 'Firebase', false),
+        ],
+      ),
+    );
+  }
+
+  Widget _portRow(String port, String label, bool active) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            active ? Icons.play_circle : Icons.pause_circle,
+            size: 14,
+            color: active ? Colors.green : Colors.grey,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            port,
+            style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
             style: TextStyle(fontSize: 11, color: Colors.grey[600]),
           ),
         ],

@@ -203,9 +203,9 @@ const List<Color> kDefaultPalette = [
 
 /// 亮度 > 160 返回 true → favicon 用深色文字（对应 tab.js isLightColor）
 bool _isLightColor(Color c) =>
-    0.299 * (c.red * 255.0) +
-        0.587 * (c.green * 255.0) +
-        0.114 * (c.blue * 255.0) >
+    0.299 * (c.r * 255.0) +
+        0.587 * (c.g * 255.0) +
+        0.114 * (c.b * 255.0) >
     160;
 
 // ============================================================
@@ -1754,7 +1754,7 @@ class _ContextMenuItemState extends State<_ContextMenuItem> {
     final enabled = widget.onTap != null;
     final s = widget.style;
     // 禁用态：fgMuted 再降一半透明度（浅深主题均可辨）
-    final disabledColor = s.fgMuted.withOpacity(0.5);
+    final disabledColor = s.fgMuted.withValues(alpha: 0.5);
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) {
@@ -2010,7 +2010,7 @@ class _TabStripPainter extends CustomPainter {
           ),
           Paint()
             ..color = style.hoverOverlay
-                .withOpacity(style.hoverOverlay.opacity * amt),
+                .withValues(alpha: style.hoverOverlay.a * amt),
         );
       }
       // ---- 2) 分隔线：仅左邻可见且非激活时，画在左边缘（1×18，top 8）----
@@ -2092,7 +2092,7 @@ class _TabStripPainter extends CustomPainter {
       }
       final base = hoverCloseIndex == index ? style.fg : style.fgMuted;
       final p = Paint()
-        ..color = base.withOpacity(base.opacity * vis)
+        ..color = base.withValues(alpha: base.a * vis)
         ..strokeWidth = 1.4
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;

@@ -20,7 +20,7 @@ class SwimlaneWidget extends StatelessWidget {
   final void Function(String paneId)? onTabTap;
   final void Function(String paneId)? onClosePane;
   final VoidCallback? onAddPane;
-  final ValueChanged<String>? onAddViewSelect;
+  final void Function(String sectionId, String viewTypeId)? onAddViewSelect;
   final void Function(String sectionId)? onToggleSection;
 
   /// Called when a section is dropped onto this swimlane.
@@ -128,7 +128,7 @@ class _SectionStack extends StatelessWidget {
   final void Function(String paneId)? onTabTap;
   final void Function(String paneId)? onClosePane;
   final VoidCallback? onAddPane;
-  final ValueChanged<String>? onAddViewSelect;
+  final void Function(String sectionId, String viewTypeId)? onAddViewSelect;
   final void Function(String sectionId)? onToggleSection;
   final void Function(
       String targetSectionId, DragSource source, int? dropIndex)? onPaneDrop;
@@ -188,13 +188,52 @@ class _SectionStack extends StatelessWidget {
       (sum, s) => sum + (s.flex ?? 1.0),
     );
 
+    // Calculate flex only for expanded sections.
+    final expandedSections = swimlane.sections
+        .where((s) => s.isExpanded)
+        .toList();
+    final expandedTotalFlex = expandedSections.fold<double>(
+      0,
+      (sum, s) => sum + (s.flex ?? 1.0),
+    );
+
     return Column(
       children: [
         for (var i = 0; i < swimlane.sections.length; i++) ...[
-          Expanded(
-            flex:
-                ((swimlane.sections[i].flex ?? 1.0) / totalFlex * 1000).round(),
-            child: SectionWidget(
+          if (swimlane.sections[i].isExpanded)
+            Expanded(
+              flex: expandedTotalFlex > 0
+                  ? (((swimlane.sections[i].flex ?? 1.0) /
+                          expandedTotalFlex * 1000)
+                      .round())
+                  : 1000,
+              child: SectionWidget(
+                section: swimlane.sections[i],
+                swimlaneId: swimlane.id,
+                registry: registry,
+                onAddPane: onAddPane,
+                onAddViewSelect: onAddViewSelect,
+                onToggleSectionExpand: onToggleSection == null
+                    ? null
+                    : () => onToggleSection!(
+                        swimlane.sections[i].sectionId),
+                onTabTap: onTabTap,
+                onClosePane: onClosePane,
+                tabBarTrailing: i == 0 && onCloseSwimlane != null
+                    ? _SwimlaneCloseButton(onTap: onCloseSwimlane!)
+                    : null,
+                onPaneDrop: (source, dropIndex) {
+                  onPaneDrop?.call(
+                    swimlane.sections[i].sectionId,
+                    source,
+                    dropIndex,
+                  );
+                },
+                onSectionDrop: onSectionDrop,
+              ),
+            )
+          else
+            SectionWidget(
               section: swimlane.sections[i],
               swimlaneId: swimlane.id,
               registry: registry,
@@ -202,7 +241,8 @@ class _SectionStack extends StatelessWidget {
               onAddViewSelect: onAddViewSelect,
               onToggleSectionExpand: onToggleSection == null
                   ? null
-                  : () => onToggleSection!(swimlane.sections[i].sectionId),
+                  : () => onToggleSection!(
+                      swimlane.sections[i].sectionId),
               onTabTap: onTabTap,
               onClosePane: onClosePane,
               tabBarTrailing: i == 0 && onCloseSwimlane != null
@@ -217,14 +257,16 @@ class _SectionStack extends StatelessWidget {
               },
               onSectionDrop: onSectionDrop,
             ),
-          ),
-          if (i < swimlane.sections.length - 1)
+          if (i < swimlane.sections.length - 1 &&
+              (swimlane.sections[i].isExpanded ||
+                  (i + 1 < swimlane.sections.length &&
+                      swimlane.sections[i + 1].isExpanded)))
             _SectionResizeHandle(
               theme: FlutterLaneTheme.of(context),
               topSectionId: swimlane.sections[i].sectionId,
               bottomSectionId: swimlane.sections[i + 1].sectionId,
               totalFlex: totalFlex,
-              totalHeight: 1.0, // Normalized; actual height comes from layout
+              totalHeight: 1.0,
               onResize: onResizeSection,
             ),
         ],
@@ -277,7 +319,7 @@ class _SectionResizeHandleState extends State<_SectionResizeHandle> {
           // We use a sensitivity factor so the resize feels natural.
           final delta = details.delta.dy;
           const sensitivity = 0.005; // flex units per pixel
-          widget.onResize?.call(widget.topSectionId, -delta * sensitivity);
+          widget.onResize?.call(widget.topSectionId, delta * sensitivity);
         },
         child: Container(
           height: 4,
@@ -316,9 +358,7 @@ class _AddSectionHotZoneState extends State<_AddSectionHotZone> {
               ? widget.theme.hoverZoneActiveColor
               : widget.theme.hoverZoneColor,
           alignment: Alignment.center,
-          child: _isHovered
-              ? const Icon(Icons.add, size: 14, color: Colors.white70)
-              : const SizedBox.shrink(),
+          child: Icon(Icons.add, size: 14, color: _isHovered ? Colors.white70 : Colors.white38),
         ),
       ),
     );

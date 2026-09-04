@@ -18,7 +18,7 @@ class SectionWidget extends StatelessWidget {
   final String swimlaneId;
   final FlutterLaneRegistry registry;
   final VoidCallback? onAddPane;
-  final ValueChanged<String>? onAddViewSelect;
+  final void Function(String sectionId, String viewTypeId)? onAddViewSelect;
   final VoidCallback? onToggleSectionExpand;
   final void Function(String paneId)? onTabTap;
   final void Function(String paneId)? onClosePane;
@@ -90,7 +90,7 @@ class _SectionDragTarget extends StatelessWidget {
   final FlutterLaneThemeData theme;
   final FlutterLaneRegistry registry;
   final VoidCallback? onAddPane;
-  final ValueChanged<String>? onAddViewSelect;
+  final void Function(String sectionId, String viewTypeId)? onAddViewSelect;
   final VoidCallback? onToggleSectionExpand;
   final void Function(String paneId)? onTabTap;
   final void Function(String paneId)? onClosePane;
@@ -190,13 +190,11 @@ class _SectionDragHandle extends StatefulWidget {
   final Section section;
   final String swimlaneId;
   final FlutterLaneThemeData theme;
-  final void Function(DragSource source)? onDragStarted;
 
   const _SectionDragHandle({
     required this.section,
     required this.swimlaneId,
     required this.theme,
-    this.onDragStarted,
   });
 
   @override
@@ -211,14 +209,7 @@ class _SectionDragHandleState extends State<_SectionDragHandle> {
         fromSwimlaneId: widget.swimlaneId,
         sectionId: widget.section.sectionId,
       ),
-      onDragStarted: () {
-        widget.onDragStarted?.call(
-          DragSource.section(
-            fromSwimlaneId: widget.swimlaneId,
-            sectionId: widget.section.sectionId,
-          ),
-        );
-      },
+      onDragStarted: () {},
       feedback: Material(
         color: Colors.transparent,
         child: Container(

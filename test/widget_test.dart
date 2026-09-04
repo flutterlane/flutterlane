@@ -29,6 +29,7 @@ LayoutState _makeLayout({
   String secTitle = 'Section 1',
   List<Pane>? panes,
   double sectionFlex = 1.0,
+  bool swCanClose = true,
 }) {
   final section = Section(
     sectionId: secId,
@@ -37,7 +38,7 @@ LayoutState _makeLayout({
     panes: panes ?? [],
     activePaneId: panes != null && panes.isNotEmpty ? panes.first.paneId : null,
   );
-  final swimlane = Swimlane(id: swId, sections: [section]);
+  final swimlane = Swimlane(id: swId, canClose: swCanClose, sections: [section]);
   return LayoutState(
     layoutName: 'Test',
     isSystemDefault: false,
@@ -98,7 +99,7 @@ void main() {
       manager.loadLayout(_makeLayout(secTitle: 'My Section'));
       await tester.pumpWidget(_wrapInApp(FlutterLaneWorkbench(manager: manager)));
 
-      expect(find.text('Section 1'), findsOneWidget);
+      expect(find.text('My Section'), findsOneWidget);
       expect(find.byType(SwimlaneWidget), findsOneWidget);
     });
 
@@ -194,7 +195,7 @@ void main() {
 
     testWidgets('close button removes a pane', (tester) async {
       final panes = [_pane('p-close', 'terminal')];
-      manager.loadLayout(_makeLayout(panes: panes));
+      manager.loadLayout(_makeLayout(panes: panes, swCanClose: false));
       manager.registry.registerPaneView(ViewInstanceMeta(
         viewTypeId: 'terminal',
         viewDisplayName: 'Terminal',
@@ -222,7 +223,10 @@ void main() {
       await tester.pumpWidget(_wrapInApp(FlutterLaneWorkbench(manager: manager)));
 
       // The _AddSectionHotZone at the bottom of the swimlane.
-      final addSection = find.byIcon(Icons.add).last;
+      final addSection = find.descendant(
+        of: find.byType(SwimlaneWidget),
+        matching: find.byIcon(Icons.add),
+      ).last;
       await tester.tap(addSection);
       await tester.pump();
 
