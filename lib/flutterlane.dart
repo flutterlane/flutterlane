@@ -17,6 +17,8 @@ export 'src/models/swimlane.dart';
 export 'src/models/section.dart';
 export 'src/models/pane.dart';
 export 'src/models/view_instance.dart';
+export 'src/models/chrome_menu_item.dart';
+export 'src/models/chrome_header_action.dart';
 
 // ── Theme ──
 export 'src/theme/flutter_lane_theme.dart';
@@ -30,6 +32,7 @@ export 'src/storage/storage_path.dart';
 export 'src/storage/layout_storage.dart';
 
 // ── Widgets ──
+export 'src/widgets/flutter_lane_chrome.dart';
 export 'src/widgets/flutter_lane_workbench.dart';
 export 'src/widgets/swimlane/swimlane_widget.dart';
 export 'src/widgets/section/section_widget.dart';

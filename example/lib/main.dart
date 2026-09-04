@@ -1,17 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutterlane/flutterlane.dart';
-import 'package:window_manager/window_manager.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await windowManager.ensureInitialized();
-  const opts = WindowOptions(size: Size(1400, 900), center: true);
-  windowManager.waitUntilReadyToShow(opts, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
-  runApp(const FlutterLaneExampleApp());
-}
+void main() => runApp(const FlutterLaneExampleApp());
 
 // ============================================================
 // Custom themes — registered alongside the 3 built-in themes
@@ -307,16 +297,6 @@ _Workspace _workspaceById(String id) {
     if (ws.id == id) return ws;
   }
   return _kWorkspaces.first;
-}
-
-IconData _themeIcon(FlutterLaneManager mgr) {
-  final activeId = mgr.themeManager.activeCustomThemeId;
-  if (activeId == 'ocean') return Icons.water;
-  if (activeId == 'ember') return Icons.local_fire_department;
-  final t = mgr.themeManager.currentType;
-  if (t == FlutterLaneThemeType.dark) return Icons.light_mode;
-  if (t == FlutterLaneThemeType.light) return Icons.dark_mode;
-  return Icons.contrast;
 }
 
 String _themeTooltip(FlutterLaneManager mgr) {
@@ -706,51 +686,50 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
       );
     }
 
-    return ListenableBuilder(
-      listenable: _manager,
-      builder: (context, _) {
-        final theme = _manager.currentTheme;
-
-        return MaterialApp(
-          title: 'FlutterLane IDE Demo',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: theme.swimlaneBackground,
-            fontFamily: 'Roboto',
-          ),
-          home: Scaffold(
-            backgroundColor: theme.swimlaneBackground,
-            body: Column(
-              children: [
-                _ChromeHeader(
-                  manager: _manager,
-                  windowTabs: _windowTabs,
-                  onResetLayout: _handleResetLayout,
-                  onSelectLayout: _handleSelectLayout,
-                ),
-                Expanded(
-                  child: FlutterLaneWorkbench(manager: _manager),
-                ),
-                _StatusBar(manager: _manager),
-              ],
-            ),
-          ),
-        );
-      },
+    return FlutterLaneChrome(
+      manager: _manager,
+      windowTabController: _windowTabs,
+      onResetLayout: _handleResetLayout,
+      menuItems: _menuItems(),
+      headerActions: [
+        FlutterLaneHeaderAction(
+          icon: Icons.palette_outlined,
+          tooltip: _themeTooltip(_manager),
+          onTap: () => _manager.themeManager.cycleTheme(),
+        ),
+      ],
     );
   }
 
-  /// Layout dropdown: picking a workspace-bound snapshot activates its
-  /// window tab (which applies that tab's dedicated layout). Generic
-  /// user-saved snapshots just become the active layout.
-  void _handleSelectLayout(String snapshotId) {
-    final layout = _manager.layouts
-        .where((l) => l.snapshotId == snapshotId)
-        .firstOrNull;
-    if (layout == null) return;
-    _manager.switchLayout(snapshotId);
-  }
+  List<FlutterLaneMenuItem> _menuItems() => [
+    FlutterLaneMenuItem(label: 'New File', icon: Icons.add, shortcut: 'Ctrl+N', onTap: () {}),
+    FlutterLaneMenuItem(label: 'New Window', icon: Icons.tab, shortcut: 'Ctrl+Shift+N', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Open File...', icon: Icons.folder_open, shortcut: 'Ctrl+O', onTap: () {}),
+    FlutterLaneMenuItem(label: 'Open Folder...', icon: Icons.folder, shortcut: 'Ctrl+K O', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(
+      label: 'Save',
+      icon: Icons.save_outlined,
+      shortcut: 'Ctrl+S',
+      onTap: () => _manager.saveAsNewLayout('Quick Save'),
+    ),
+    FlutterLaneMenuItem(label: 'Save As...', icon: Icons.save, shortcut: 'Ctrl+Shift+S', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Preferences', icon: Icons.settings, onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Undo', icon: Icons.undo, shortcut: 'Ctrl+Z', onTap: () {}),
+    FlutterLaneMenuItem(label: 'Redo', icon: Icons.redo, shortcut: 'Ctrl+Y', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Find', icon: Icons.search, shortcut: 'Ctrl+F', onTap: () {}),
+    FlutterLaneMenuItem(label: 'Replace', icon: Icons.find_replace, shortcut: 'Ctrl+H', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Explorer', icon: Icons.folder_copy_rounded, shortcut: 'Ctrl+Shift+E', onTap: () {}),
+    FlutterLaneMenuItem(label: 'Terminal', icon: Icons.terminal, shortcut: 'Ctrl+`', onTap: () {}),
+    FlutterLaneMenuItem(label: 'Debug', icon: Icons.bug_report, shortcut: 'Ctrl+Shift+D', onTap: () {}),
+    FlutterLaneMenuItem.divider(),
+    FlutterLaneMenuItem(label: 'Exit', icon: Icons.exit_to_app, onTap: () {}),
+  ];
 
   /// Reset to default layout: rebuild the default (FlutterLane) workspace's
   /// persisted snapshot from a pristine copy, then activate its tab.
@@ -790,215 +769,7 @@ class _FlutterLaneExampleAppState extends State<FlutterLaneExampleApp> {
 }
 
 // ============================================================
-// Chrome header
-// ============================================================
-
-class _ChromeHeader extends StatefulWidget {
-  final FlutterLaneManager manager;
-  final TabBarController windowTabs;
-  final VoidCallback onResetLayout;
-  final ValueChanged<String> onSelectLayout;
-
-  const _ChromeHeader({
-    required this.manager,
-    required this.windowTabs,
-    required this.onResetLayout,
-    required this.onSelectLayout,
-  });
-
-  @override
-  State<_ChromeHeader> createState() => _ChromeHeaderState();
-}
-
-class _ChromeHeaderState extends State<_ChromeHeader> {
-  final GlobalKey _menuKey = GlobalKey();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.manager.currentTheme;
-
-    return Container(
-      height: 42,
-      color: theme.headerBarBackground,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: Row(
-        children: [
-          Row(
-            children: [
-              _TrafficDot(
-                color: const Color(0xFFff5f57),
-                tooltip: 'Close',
-                onTap: () => windowManager.close(),
-              ),
-              const SizedBox(width: 8),
-              _TrafficDot(
-                color: const Color(0xFFfebc2e),
-                tooltip: 'Minimize',
-                onTap: () => windowManager.minimize(),
-              ),
-              const SizedBox(width: 8),
-              _TrafficDot(
-                color: const Color(0xFF28c840),
-                tooltip: 'Maximize',
-                onTap: () async {
-                  final maxed = await windowManager.isMaximized();
-                  maxed ? windowManager.unmaximize() : windowManager.maximize();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          GestureDetector(
-            key: _menuKey,
-            onTap: () => _showMenu(context),
-            child: Icon(Icons.menu, size: 14, color: theme.headerBarTextColor),
-          ),
-          const SizedBox(width: 12),
-          Flexible(
-            child: SizedBox(
-              height: 38,
-              child: WindowTabBar(
-                controller: widget.windowTabs,
-                newTabLabel: 'New Window',
-                style: TabBarStyle.fromFlutterLaneTheme(theme),
-              ),
-            ),
-          ),
-          const Spacer(),
-          _LayoutDropdown(manager: widget.manager, onSelectLayout: widget.onSelectLayout),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: Icon(Icons.save_outlined, size: 15, color: theme.headerBarTextColor),
-            tooltip: 'Save current layout',
-            onPressed: () => _showSaveDialog(context, widget.manager),
-          ),
-          IconButton(
-            icon: Icon(_themeIcon(widget.manager), size: 15, color: theme.headerBarTextColor),
-            tooltip: _themeTooltip(widget.manager),
-            onPressed: () => widget.manager.themeManager.cycleTheme(),
-          ),
-          IconButton(
-            key: const ValueKey('reset-default-layout'),
-            icon: Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
-            tooltip: 'Reset to default layout',
-            onPressed: () => widget.onResetLayout(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showMenu(BuildContext context) {
-    final theme = widget.manager.currentTheme;
-    final RenderBox? box = _menuKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final offset = box.localToGlobal(Offset.zero);
-
-    final items = <PopupMenuEntry<String>>[
-      _buildPopupItem('new_file', 'New File', Icons.add, 'Ctrl+N'),
-      _buildPopupItem('new_window', 'New Window', Icons.tab, 'Ctrl+Shift+N'),
-      const PopupMenuDivider(),
-      _buildPopupItem('open_file', 'Open File...', Icons.folder_open, 'Ctrl+O'),
-      _buildPopupItem('open_folder', 'Open Folder...', Icons.folder, 'Ctrl+K O'),
-      const PopupMenuDivider(),
-      _buildPopupItem('save', 'Save', Icons.save_outlined, 'Ctrl+S'),
-      _buildPopupItem('save_as', 'Save As...', Icons.save, 'Ctrl+Shift+S'),
-      const PopupMenuDivider(),
-      _buildPopupItem('preferences', 'Preferences', Icons.settings, ''),
-      const PopupMenuDivider(),
-      _buildPopupItem('undo', 'Undo', Icons.undo, 'Ctrl+Z'),
-      _buildPopupItem('redo', 'Redo', Icons.redo, 'Ctrl+Y'),
-      const PopupMenuDivider(),
-      _buildPopupItem('cut', 'Cut', Icons.content_cut, 'Ctrl+X'),
-      _buildPopupItem('copy', 'Copy', Icons.copy, 'Ctrl+C'),
-      _buildPopupItem('paste', 'Paste', Icons.paste, 'Ctrl+V'),
-      const PopupMenuDivider(),
-      _buildPopupItem('find', 'Find', Icons.search, 'Ctrl+F'),
-      _buildPopupItem('replace', 'Replace', Icons.find_replace, 'Ctrl+H'),
-      const PopupMenuDivider(),
-      _buildPopupItem('explorer', 'Explorer', Icons.folder_copy_rounded, 'Ctrl+Shift+E'),
-      _buildPopupItem('terminal', 'Terminal', Icons.terminal, 'Ctrl+`'),
-      _buildPopupItem('debug', 'Debug', Icons.bug_report, 'Ctrl+Shift+D'),
-      const PopupMenuDivider(),
-      _buildPopupItem('exit', 'Exit', Icons.exit_to_app, ''),
-    ];
-
-    showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx, offset.dy + box.size.height, offset.dx + 250, offset.dy + box.size.height + 400,
-      ),
-      items: items,
-      color: theme.sectionBackground,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(color: theme.sectionBorderColor),
-      ),
-      elevation: 8,
-    ).then((value) {
-      if (value == null) return;
-      switch (value) {
-        case 'save':
-          _showSaveDialog(context, widget.manager);
-          break;
-        case 'exit':
-          windowManager.close();
-          break;
-      }
-    });
-  }
-
-  PopupMenuItem<String> _buildPopupItem(String value, String label, IconData icon, String shortcut) {
-    final theme = widget.manager.currentTheme;
-    return PopupMenuItem(
-      value: value,
-      height: 32,
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: theme.tabInactiveTextColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(label, style: TextStyle(fontSize: 12, color: theme.sectionHeaderTextColor)),
-          ),
-          if (shortcut.isNotEmpty)
-            Text(
-              shortcut,
-              style: TextStyle(fontSize: 11, color: theme.tabInactiveTextColor.withValues(alpha: 0.6)),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TrafficDot extends StatelessWidget {
-  final Color color;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _TrafficDot({required this.color, required this.tooltip, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// ActivityBar — folder_copy_rounded applies the active tab's layout
+// Activity bar & copilot (kept as example views)
 // ============================================================
 
 class _ActivityBar extends StatelessWidget {
@@ -1033,12 +804,22 @@ class _ActivityBar extends StatelessWidget {
           const SizedBox(height: 12),
           ..._items.map((item) {
             final isSelected = item.$1 == activeActivity;
-            return _ActivityIcon(
-              icon: item.$2,
-              selected: isSelected,
-              theme: theme,
+            return GestureDetector(
               onTap: () => onActivityTap(item.$1),
-              tooltip: item.$1,
+              child: Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? theme.tabActiveBackground : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  item.$2,
+                  size: 20,
+                  color: isSelected ? theme.tabActiveTextColor : theme.tabInactiveTextColor,
+                ),
+              ),
             );
           }),
           const Spacer(),
@@ -1063,50 +844,6 @@ class _ActivityBar extends StatelessWidget {
     );
   }
 }
-
-class _ActivityIcon extends StatelessWidget {
-  final IconData icon;
-  final bool selected;
-  final FlutterLaneThemeData theme;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  const _ActivityIcon({
-    required this.icon,
-    required this.selected,
-    required this.theme,
-    required this.onTap,
-    this.tooltip = '',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 32,
-          height: 32,
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: selected ? theme.tabActiveBackground : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            size: 20,
-            color: selected ? theme.tabActiveTextColor : theme.tabInactiveTextColor,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// Copilot
-// ============================================================
 
 class _CopilotPane extends StatelessWidget {
   final FlutterLaneManager manager;
@@ -1230,148 +967,6 @@ class _PromptBubble extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(fontSize: 11, color: Colors.white70),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// Dialogs & chrome helpers
-// ============================================================
-
-void _showSaveDialog(BuildContext context, FlutterLaneManager mgr) {
-  final controller = TextEditingController();
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Save Layout'),
-      content: TextField(
-        controller: controller,
-        decoration: const InputDecoration(hintText: 'Layout name'),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () {
-            if (controller.text.isNotEmpty) {
-              mgr.saveAsNewLayout(controller.text);
-            }
-            Navigator.pop(ctx);
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  );
-}
-
-class _LayoutDropdown extends StatelessWidget {
-  final FlutterLaneManager manager;
-  final ValueChanged<String> onSelectLayout;
-
-  const _LayoutDropdown({
-    required this.manager,
-    required this.onSelectLayout,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
-    final layouts = manager.layouts.where((l) => !l.isSystemDefault).toList();
-    final activeId = manager.activeLayout?.snapshotId;
-
-    return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: theme.sectionHeaderBackground,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: theme.sectionBorderColor),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: activeId,
-          isDense: true,
-          style: TextStyle(fontSize: 11, color: theme.headerBarTextColor),
-          items: layouts
-              .map((l) => DropdownMenuItem(
-                    value: l.snapshotId,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(l.layoutName),
-                        if (l.isSystemDefault) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.lock_outline,
-                              size: 10, color: theme.tabInactiveTextColor),
-                        ],
-                      ],
-                    ),
-                  ))
-              .toList(),
-          onChanged: (id) {
-            if (id != null) {
-              onSelectLayout(id);
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusBar extends StatelessWidget {
-  final FlutterLaneManager manager;
-
-  const _StatusBar({required this.manager});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = manager.currentTheme;
-    final active = manager.activeLayout;
-    final swimlaneCount = active?.swimlanes.length ?? 0;
-    final sectionCount = active?.swimlanes.fold<int>(
-          0,
-          (sum, s) => sum + s.sections.length,
-        ) ??
-        0;
-    final paneCount = active?.swimlanes.fold<int>(
-          0,
-          (sum, lane) =>
-              sum +
-              lane.sections.fold<int>(
-                0,
-                (acc, section) => acc + section.panes.length,
-              ),
-        ) ??
-        0;
-
-    return Container(
-      height: 22,
-      color: theme.statusBarBackground,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          Text(
-            '$swimlaneCount swimlanes · $sectionCount sections · $paneCount panes',
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.statusBarTextColor,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            'Layout: ${active?.layoutName ?? 'None'}',
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.statusBarTextColor,
-            ),
-          ),
-        ],
       ),
     );
   }
