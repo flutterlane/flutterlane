@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutterlane/flutterlane.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() => runApp(const FlutterLaneExampleApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+  const opts = WindowOptions(size: Size(1400, 900), center: true);
+  windowManager.waitUntilReadyToShow(opts, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+  runApp(const FlutterLaneExampleApp());
+}
 
 // ============================================================
 // Custom themes — registered alongside the 3 built-in themes
@@ -801,232 +811,185 @@ class _ChromeHeader extends StatefulWidget {
 }
 
 class _ChromeHeaderState extends State<_ChromeHeader> {
-  bool _menuOpen = false;
+  final GlobalKey _menuKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     final theme = widget.manager.currentTheme;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          height: 42,
-          color: theme.headerBarBackground,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Row(
+    return Container(
+      height: 42,
+      color: theme.headerBarBackground,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        children: [
+          Row(
             children: [
-              const Row(
-                children: [
-                  _TrafficDot(color: Color(0xFFff5f57)),
-                  SizedBox(width: 8),
-                  _TrafficDot(color: Color(0xFFfebc2e)),
-                  SizedBox(width: 8),
-                  _TrafficDot(color: Color(0xFF28c840)),
-                ],
+              _TrafficDot(
+                color: const Color(0xFFff5f57),
+                tooltip: 'Close',
+                onTap: () => windowManager.close(),
               ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => setState(() => _menuOpen = !_menuOpen),
-                child: Icon(Icons.menu, size: 14, color: theme.headerBarTextColor),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: SizedBox(
-                  height: 38,
-                  child: WindowTabBar(
-                    controller: widget.windowTabs,
-                    newTabLabel: 'New Window',
-                    style: TabBarStyle.fromFlutterLaneTheme(theme),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              _LayoutDropdown(manager: widget.manager, onSelectLayout: widget.onSelectLayout),
               const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(Icons.save_outlined, size: 15, color: theme.headerBarTextColor),
-                tooltip: 'Save current layout',
-                onPressed: () => _showSaveDialog(context, widget.manager),
+              _TrafficDot(
+                color: const Color(0xFFfebc2e),
+                tooltip: 'Minimize',
+                onTap: () => windowManager.minimize(),
               ),
-              IconButton(
-                icon: Icon(_themeIcon(widget.manager), size: 15, color: theme.headerBarTextColor),
-                tooltip: _themeTooltip(widget.manager),
-                onPressed: () => widget.manager.themeManager.cycleTheme(),
-              ),
-              IconButton(
-                key: const ValueKey('reset-default-layout'),
-                icon: Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
-                tooltip: 'Reset to default layout',
-                onPressed: () => widget.onResetLayout(),
+              const SizedBox(width: 8),
+              _TrafficDot(
+                color: const Color(0xFF28c840),
+                tooltip: 'Maximize',
+                onTap: () async {
+                  final maxed = await windowManager.isMaximized();
+                  maxed ? windowManager.unmaximize() : windowManager.maximize();
+                },
               ),
             ],
           ),
-        ),
-        if (_menuOpen)
-          Positioned(
-            top: 42,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: GestureDetector(
-              onTap: () => setState(() => _menuOpen = false),
-              behavior: HitTestBehavior.opaque,
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 0,
-                    left: 10 + 12 + 16 + 14 + 12,
-                    child: _MenuDropdown(
-                      items: _menuItems(),
-                      theme: theme,
-                      onClose: () => setState(() => _menuOpen = false),
-                    ),
-                  ),
-                ],
+          const SizedBox(width: 16),
+          GestureDetector(
+            key: _menuKey,
+            onTap: () => _showMenu(context),
+            child: Icon(Icons.menu, size: 14, color: theme.headerBarTextColor),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: SizedBox(
+              height: 38,
+              child: WindowTabBar(
+                controller: widget.windowTabs,
+                newTabLabel: 'New Window',
+                style: TabBarStyle.fromFlutterLaneTheme(theme),
               ),
             ),
           ),
-      ],
+          const Spacer(),
+          _LayoutDropdown(manager: widget.manager, onSelectLayout: widget.onSelectLayout),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(Icons.save_outlined, size: 15, color: theme.headerBarTextColor),
+            tooltip: 'Save current layout',
+            onPressed: () => _showSaveDialog(context, widget.manager),
+          ),
+          IconButton(
+            icon: Icon(_themeIcon(widget.manager), size: 15, color: theme.headerBarTextColor),
+            tooltip: _themeTooltip(widget.manager),
+            onPressed: () => widget.manager.themeManager.cycleTheme(),
+          ),
+          IconButton(
+            key: const ValueKey('reset-default-layout'),
+            icon: Icon(Icons.restore, size: 15, color: theme.headerBarTextColor),
+            tooltip: 'Reset to default layout',
+            onPressed: () => widget.onResetLayout(),
+          ),
+        ],
+      ),
     );
   }
 
-  List<_MenuItem> _menuItems() => [
-    _MenuItem('New File', Icons.add, () {}, shortcut: 'Ctrl+N'),
-    _MenuItem('New Window', Icons.tab, () {}, shortcut: 'Ctrl+Shift+N'),
-    _MenuItem.divider(),
-    _MenuItem('Open File...', Icons.folder_open, () {}, shortcut: 'Ctrl+O'),
-    _MenuItem('Open Folder...', Icons.folder, () {}, shortcut: 'Ctrl+K O'),
-    _MenuItem.divider(),
-    _MenuItem('Save', Icons.save_outlined, () => _showSaveDialog(context, widget.manager), shortcut: 'Ctrl+S'),
-    _MenuItem('Save As...', Icons.save, () {}, shortcut: 'Ctrl+Shift+S'),
-    _MenuItem.divider(),
-    _MenuItem('Preferences', Icons.settings, () {}),
-    _MenuItem.divider(),
-    _MenuItem('Undo', Icons.undo, () {}, shortcut: 'Ctrl+Z'),
-    _MenuItem('Redo', Icons.redo, () {}, shortcut: 'Ctrl+Y'),
-    _MenuItem.divider(),
-    _MenuItem('Cut', Icons.content_cut, () {}, shortcut: 'Ctrl+X'),
-    _MenuItem('Copy', Icons.copy, () {}, shortcut: 'Ctrl+C'),
-    _MenuItem('Paste', Icons.paste, () {}, shortcut: 'Ctrl+V'),
-    _MenuItem.divider(),
-    _MenuItem('Find', Icons.search, () {}, shortcut: 'Ctrl+F'),
-    _MenuItem('Replace', Icons.find_replace, () {}, shortcut: 'Ctrl+H'),
-    _MenuItem.divider(),
-    _MenuItem('Explorer', Icons.folder_copy_rounded, () {}, shortcut: 'Ctrl+Shift+E'),
-    _MenuItem('Terminal', Icons.terminal, () {}, shortcut: 'Ctrl+`'),
-    _MenuItem('Debug', Icons.bug_report, () {}, shortcut: 'Ctrl+Shift+D'),
-    _MenuItem.divider(),
-    _MenuItem('Zoom In', Icons.zoom_in, () {}, shortcut: 'Ctrl+='),
-    _MenuItem('Zoom Out', Icons.zoom_out, () {}, shortcut: 'Ctrl+-'),
-    _MenuItem('Reset Zoom', Icons.zoom_out_map, () {}, shortcut: 'Ctrl+0'),
-    _MenuItem.divider(),
-    _MenuItem('Exit', Icons.exit_to_app, () {}),
-  ];
+  void _showMenu(BuildContext context) {
+    final theme = widget.manager.currentTheme;
+    final RenderBox? box = _menuKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final offset = box.localToGlobal(Offset.zero);
+
+    final items = <PopupMenuEntry<String>>[
+      _buildPopupItem('new_file', 'New File', Icons.add, 'Ctrl+N'),
+      _buildPopupItem('new_window', 'New Window', Icons.tab, 'Ctrl+Shift+N'),
+      const PopupMenuDivider(),
+      _buildPopupItem('open_file', 'Open File...', Icons.folder_open, 'Ctrl+O'),
+      _buildPopupItem('open_folder', 'Open Folder...', Icons.folder, 'Ctrl+K O'),
+      const PopupMenuDivider(),
+      _buildPopupItem('save', 'Save', Icons.save_outlined, 'Ctrl+S'),
+      _buildPopupItem('save_as', 'Save As...', Icons.save, 'Ctrl+Shift+S'),
+      const PopupMenuDivider(),
+      _buildPopupItem('preferences', 'Preferences', Icons.settings, ''),
+      const PopupMenuDivider(),
+      _buildPopupItem('undo', 'Undo', Icons.undo, 'Ctrl+Z'),
+      _buildPopupItem('redo', 'Redo', Icons.redo, 'Ctrl+Y'),
+      const PopupMenuDivider(),
+      _buildPopupItem('cut', 'Cut', Icons.content_cut, 'Ctrl+X'),
+      _buildPopupItem('copy', 'Copy', Icons.copy, 'Ctrl+C'),
+      _buildPopupItem('paste', 'Paste', Icons.paste, 'Ctrl+V'),
+      const PopupMenuDivider(),
+      _buildPopupItem('find', 'Find', Icons.search, 'Ctrl+F'),
+      _buildPopupItem('replace', 'Replace', Icons.find_replace, 'Ctrl+H'),
+      const PopupMenuDivider(),
+      _buildPopupItem('explorer', 'Explorer', Icons.folder_copy_rounded, 'Ctrl+Shift+E'),
+      _buildPopupItem('terminal', 'Terminal', Icons.terminal, 'Ctrl+`'),
+      _buildPopupItem('debug', 'Debug', Icons.bug_report, 'Ctrl+Shift+D'),
+      const PopupMenuDivider(),
+      _buildPopupItem('exit', 'Exit', Icons.exit_to_app, ''),
+    ];
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx, offset.dy + box.size.height, offset.dx + 250, offset.dy + box.size.height + 400,
+      ),
+      items: items,
+      color: theme.sectionBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: theme.sectionBorderColor),
+      ),
+      elevation: 8,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'save':
+          _showSaveDialog(context, widget.manager);
+          break;
+        case 'exit':
+          windowManager.close();
+          break;
+      }
+    });
+  }
+
+  PopupMenuItem<String> _buildPopupItem(String value, String label, IconData icon, String shortcut) {
+    final theme = widget.manager.currentTheme;
+    return PopupMenuItem(
+      value: value,
+      height: 32,
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: theme.tabInactiveTextColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label, style: TextStyle(fontSize: 12, color: theme.sectionHeaderTextColor)),
+          ),
+          if (shortcut.isNotEmpty)
+            Text(
+              shortcut,
+              style: TextStyle(fontSize: 11, color: theme.tabInactiveTextColor.withValues(alpha: 0.6)),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TrafficDot extends StatelessWidget {
   final Color color;
-  const _TrafficDot({required this.color});
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _TrafficDot({required this.color, required this.tooltip, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 12,
-      height: 12,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-}
-
-class _MenuItem {
-  final String? label;
-  final IconData? icon;
-  final VoidCallback? onTap;
-  final bool isDivider;
-  final String? shortcut;
-
-  const _MenuItem(this.label, this.icon, this.onTap, {this.shortcut}) : isDivider = false;
-  const _MenuItem.divider()
-      : label = null,
-        icon = null,
-        onTap = null,
-        shortcut = null,
-        isDivider = true;
-}
-
-class _MenuDropdown extends StatelessWidget {
-  final List<_MenuItem> items;
-  final FlutterLaneThemeData theme;
-  final VoidCallback onClose;
-
-  const _MenuDropdown({
-    required this.items,
-    required this.theme,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
+    return Tooltip(
+      message: tooltip,
       child: GestureDetector(
-        onTap: () {},
-        child: Container(
-          width: 280,
-          decoration: BoxDecoration(
-            color: theme.sectionBackground,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.sectionBorderColor, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final item in items)
-                if (item.isDivider)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Divider(height: 1, color: theme.sectionBorderColor),
-                  )
-                else
-                  InkWell(
-                    onTap: () {
-                      item.onTap?.call();
-                      onClose();
-                    },
-                    child: Container(
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        children: [
-                          Icon(item.icon, size: 14, color: theme.tabInactiveTextColor),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              item.label ?? '',
-                              style: TextStyle(fontSize: 12, color: theme.sectionHeaderTextColor),
-                            ),
-                          ),
-                          if (item.shortcut != null)
-                            Text(
-                              item.shortcut!,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: theme.tabInactiveTextColor.withValues(alpha: 0.6),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-            ],
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         ),
       ),

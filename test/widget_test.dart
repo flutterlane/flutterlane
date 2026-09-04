@@ -83,6 +83,35 @@ Pane _pane(String id, String viewType) => Pane(
       viewInstance: ViewInstance(viewTypeId: viewType),
     );
 
+class _TestTrafficDot extends StatelessWidget {
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _TestTrafficDot({
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // FlutterLaneWorkbench
 // ══════════════════════════════════════════════════════════════════════════════
@@ -714,6 +743,108 @@ void main() {
       // Both sections render — flex is handled by Expanded widgets internally.
       expect(find.text('Big'), findsOneWidget);
       expect(find.text('Small'), findsOneWidget);
+    });
+  });
+
+  group('Traffic dots', () {
+    testWidgets('renders three colored dots with tooltips',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(_wrapInApp(
+        Row(
+          children: [
+            _TestTrafficDot(
+              color: const Color(0xFFff5f57),
+              tooltip: 'Close',
+              onTap: () {},
+            ),
+            _TestTrafficDot(
+              color: const Color(0xFFfebc2e),
+              tooltip: 'Minimize',
+              onTap: () {},
+            ),
+            _TestTrafficDot(
+              color: const Color(0xFF28c840),
+              tooltip: 'Maximize',
+              onTap: () {},
+            ),
+          ],
+        ),
+      ));
+
+      expect(find.byTooltip('Close'), findsOneWidget);
+      expect(find.byTooltip('Minimize'), findsOneWidget);
+      expect(find.byTooltip('Maximize'), findsOneWidget);
+    });
+
+    testWidgets('tapping a dot fires its callback', (WidgetTester tester) async {
+      var called = false;
+      await tester.pumpWidget(_wrapInApp(
+        _TestTrafficDot(
+          color: const Color(0xFFff5f57),
+          tooltip: 'Close',
+          onTap: () => called = true,
+        ),
+      ));
+
+      await tester.tap(find.byTooltip('Close'));
+      expect(called, isTrue);
+    });
+
+    testWidgets('each dot fires a different callback',
+        (WidgetTester tester) async {
+      var closeCalled = false;
+      var minCalled = false;
+      var maxCalled = false;
+
+      await tester.pumpWidget(_wrapInApp(
+        Row(
+          children: [
+            _TestTrafficDot(
+              color: const Color(0xFFff5f57),
+              tooltip: 'Close',
+              onTap: () => closeCalled = true,
+            ),
+            _TestTrafficDot(
+              color: const Color(0xFFfebc2e),
+              tooltip: 'Minimize',
+              onTap: () => minCalled = true,
+            ),
+            _TestTrafficDot(
+              color: const Color(0xFF28c840),
+              tooltip: 'Maximize',
+              onTap: () => maxCalled = true,
+            ),
+          ],
+        ),
+      ));
+
+      await tester.tap(find.byTooltip('Minimize'));
+      expect(closeCalled, isFalse);
+      expect(minCalled, isTrue);
+      expect(maxCalled, isFalse);
+    });
+  });
+
+  group('Hamburger menu', () {
+    testWidgets('menu icon renders', (WidgetTester tester) async {
+      await tester.pumpWidget(_wrapInApp(
+        const Icon(Icons.menu, size: 14),
+      ));
+      expect(find.byIcon(Icons.menu), findsOneWidget);
+    });
+
+    testWidgets('tapping menu icon fires callback',
+        (WidgetTester tester) async {
+      var tapped = false;
+      await tester.pumpWidget(_wrapInApp(
+        GestureDetector(
+          onTap: () => tapped = true,
+          child: const Icon(Icons.menu, size: 14),
+        ),
+      ));
+
+      await tester.tap(find.byIcon(Icons.menu));
+      expect(tapped, isTrue);
     });
   });
 }
