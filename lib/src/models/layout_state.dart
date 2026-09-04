@@ -101,6 +101,39 @@ class LayoutState {
     return swimlanes.removeAt(index);
   }
 
+  /// Normalizes swimlane flex values so that each swimlane gets at least
+  /// its minWidth when rendered. This prevents tiny flex values from
+  /// accumulated resize operations from making swimlanes too narrow.
+  ///
+  /// The algorithm:
+  /// 1. For each swimlane, calculate the flex value needed to achieve minWidth
+  /// 2. If a swimlane's flex is below the minimum, boost it
+  /// 3. Scale all other flex values proportionally to maintain relative sizing
+  void normalizeFlexValues({double availableWidth = 800}) {
+    if (swimlanes.isEmpty) return;
+
+    const minWidth = 120.0;
+    const minFlex = 1.0;
+
+    // Find swimlanes with flex below minimum
+    bool needsNormalization = false;
+    for (final lane in swimlanes) {
+      if (lane.flex < minFlex) {
+        needsNormalization = true;
+        break;
+      }
+    }
+
+    if (!needsNormalization) return;
+
+    // Normalize all flex values to be at least minFlex
+    for (final lane in swimlanes) {
+      if (lane.flex < minFlex) {
+        lane.flex = minFlex;
+      }
+    }
+  }
+
   /// Creates the built-in system-default layout with one swimlane and one placeholder section.
   ///
   /// Optionally supply [swimlanes] to override the default empty layout

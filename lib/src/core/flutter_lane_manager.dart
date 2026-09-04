@@ -111,6 +111,11 @@ class FlutterLaneManager extends ChangeNotifier {
 
     _layouts = await _storage.readAll();
 
+    // Normalize flex values for all loaded layouts to prevent tiny swimlanes
+    for (final layout in _layouts) {
+      layout.normalizeFlexValues();
+    }
+
     // Ensure at least the system-default layout exists.
     if (_layouts.isEmpty) {
       final defaults = LayoutState.systemDefault(swimlanes: defaultSwimlanes);
